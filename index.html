@@ -1,0 +1,2278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>cinearchive</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.png" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        @media screen and (max-width: 1920px) {
+            .container { transform: scale(0.85); transform-origin: top center; width: 117.65%; margin-left: -8.82%; }
+        }
+        @media screen and (max-width: 1680px) {
+            .container { transform: scale(0.75); transform-origin: top center; width: 133.33%; margin-left: -16.67%; }
+        }
+        @media screen and (max-width: 1440px) {
+            .container { transform: scale(0.65); transform-origin: top center; width: 153.85%; margin-left: -26.92%; }
+        }
+        body { overflow-x: hidden; min-height: 100vh; }
+        select { appearance: none; -webkit-appearance: none; -moz-appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 40px !important; padding-left: 14px !important; cursor: pointer; min-height: 42px; }
+        select:hover { border-color: #52525b; }
+        select:focus { border-color: #737373; outline: none; box-shadow: 0 0 0 2px rgba(115,115,115,0.2); }
+        select::-ms-expand { display: none; }
+        select option { background: #17171b; color: #e4e4e7; padding: 8px 12px; }
+        select { transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out; }
+        input[type="number"] { appearance: textfield; -moz-appearance: textfield; }
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        @media (max-width: 640px) {
+            select { background-position: right 12px center; padding-right: 36px !important; padding-left: 12px !important; min-height: 40px; }
+        }
+        .toggle-switch { position: relative; width: 44px; height: 24px; flex-shrink: 0; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #27272a; transition: .3s; border-radius: 24px; border: 1px solid #3f3f46; }
+        .toggle-slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 3px; background-color: #a1a1aa; transition: .3s; border-radius: 50%; }
+        .toggle-switch input:checked + .toggle-slider { background-color: #3b82f6; border-color: #3b82f6; }
+        .toggle-switch input:checked + .toggle-slider:before { transform: translateX(20px); background-color: white; }
+        .manual-mode .omdb-field { display: none; }
+        .omdb-mode .manual-field { display: none; }
+        .edit-mode .edit-controls { display: flex !important; }
+        .edit-mode .edit-button { background: #3b82f6 !important; border-color: #3b82f6 !important; color: white !important; }
+        .edit-controls { display: none; }
+        .edit-mode .genre-edit-btn { display: inline-flex !important; }
+        .genre-edit-btn { display: none !important; }
+        .edit-mode .poster-edit-btn { display: flex !important; }
+        .poster-edit-btn { display: none !important; }
+        .edit-mode .title-edit-btn { display: inline-flex !important; }
+        .title-edit-btn { display: none !important; }
+        .edit-mode #statusMessage { display: none !important; }
+        /* Season refresh button - only visible in edit mode */
+        .season-refresh-btn { display: none !important; }
+        .edit-mode .season-refresh-btn { display: inline-flex !important; }
+        /* Season/Episode edit inputs - only visible in edit mode */
+        .season-input, .episode-input { display: none !important; }
+        .edit-mode .season-input, .edit-mode .episode-input { display: inline-block !important; }
+        .edit-mode .season-display, .edit-mode .episode-display { display: none !important; }
+       
+        
+
+        .reorder-mode .movie-card {
+            cursor: grab;
+            transition: box-shadow 0.15s, transform 0.1s;
+        }
+        .reorder-mode .movie-card:active {
+            cursor: grabbing;
+        }
+        .reorder-mode .movie-card.dragging {
+            opacity: 0.4;
+            transform: scale(0.97);
+        }
+        .reorder-mode .movie-card.drag-over {
+            border-color: #60a5fa !important;
+            box-shadow: 0 0 0 2px #3b82f6, 0 0 0 4px rgba(59,130,246,0.3);
+        }
+        .reorder-mode .movie-card.drag-over-bulk {
+            border-color: #a78bfa !important;
+            box-shadow: 0 0 0 2px #8b5cf6, 0 0 0 4px rgba(139,92,246,0.3);
+        }
+        .reorder-toggle-btn.active {
+            background: #3b82f6 !important;
+            border-color: #3b82f6 !important;
+            color: white !important;
+        }
+        .reorder-toggle-btn {
+            transition: all 0.2s;
+        }
+        .drag-handle {
+            display: none;
+            cursor: grab;
+            color: #52525b;
+            font-size: 14px;
+            padding: 0 4px;
+            user-select: none;
+        }
+        .reorder-mode .drag-handle {
+            display: inline-block;
+        }
+        .reorder-mode .movie-card button,
+        .reorder-mode .movie-card .genre-edit-btn,
+        .reorder-mode .movie-card .poster-edit-btn,
+        .reorder-mode .movie-card .title-edit-btn,
+        .reorder-mode .movie-card .edit-tags-btn,
+        .reorder-mode .movie-card .remove-btn,
+        .reorder-mode .movie-card .status-badge,
+        .reorder-mode .movie-card .type-badge,
+        .reorder-mode .movie-card .rating-badge,
+        .reorder-mode .movie-card .card-poster .absolute:not(.drag-handle) {
+            display: none !important;
+        }
+        .reorder-mode .movie-card .drag-handle {
+            display: inline-block !important;
+        }
+        .reorder-mode .movie-card .card-poster img {
+            filter: grayscale(0.2);
+        }
+        .reorder-mode .movie-card .card-poster .year-badge {
+            display: block !important;
+        }
+        .reorder-mode .movie-card .card-poster .year-badge {
+            position: absolute;
+            bottom: 8px;
+            right: 8px;
+            background: rgba(0,0,0,0.7);
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            color: #e4e4e7;
+        }
+        .reorder-mode .movie-card .movie-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: #e4e4e7;
+            text-align: center;
+            padding: 6px 0;
+        }
+        .reorder-mode .movie-card .movie-info {
+            display: none !important;
+        }
+        .reorder-mode .movie-card {
+            background: #1a1a1e !important;
+            border-color: #3a3a3e !important;
+        }
+        .reorder-mode .movie-card .card-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 8px;
+        }
+        .reorder-mode .movie-card .card-poster {
+            aspect-ratio: 2/3;
+            width: 100%;
+        }
+        .reorder-mode .movie-card .card-poster img {
+            object-fit: cover;
+            width: 100%;
+            height: 100%;
+        }
+        .reorder-mode .movie-card.bulk-selected {
+            border-color: #8b5cf6 !important;
+            box-shadow: 0 0 0 2px #8b5cf6, 0 0 0 4px rgba(139,92,246,0.2);
+        }
+        .reorder-mode .movie-card.bulk-dragging {
+            opacity: 0.3;
+        }
+        .reorder-mode .movie-card .bulk-check {
+            display: none;
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: #8b5cf6;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: bold;
+            z-index: 10;
+        }
+        .reorder-mode .movie-card.bulk-selected .bulk-check {
+            display: block;
+        }
+        /* progress dropdowns */
+        .progress-select {
+            background: #1a1a1e;
+            border: 1px solid #3a3a3e;
+            border-radius: 6px;
+            color: #d4d4d8;
+            font-size: 10px;
+            padding: 2px 16px 2px 6px;
+            width: 44px;
+            min-height: 20px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 4px center;
+        }
+        .progress-select:focus {
+            border-color: #52525b;
+            outline: none;
+        }
+        .progress-select option {
+            background: #1a1a1e;
+            color: #d4d4d8;
+        }
+        
+    </style>
+</head>
+<body class="bg-neutral-950 text-neutral-100 min-h-screen font-sans antialiased selection:bg-neutral-800 selection:text-white">
+<div class="container mx-auto px-6 py-12 max-w-5xl">
+    <!-- Control Panel -->
+    <div class="bg-neutral-900/60 backdrop-blur-xl p-6 rounded-2xl shadow-2xl mb-10 grid grid-cols-1 md:grid-cols-4 gap-6 border border-neutral-800/80">
+        <!-- Add Movie Form with tags -->
+        <div class="md:col-span-4 bg-neutral-950/40 p-5 rounded-xl border border-neutral-800/50" id="addForm">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xs uppercase tracking-widest font-medium text-neutral-400">Add New Title</h2>
+                <div class="flex items-center gap-3">
+                    <span class="text-xs text-neutral-500 font-light" id="modeLabel">OMDB Auto</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="manualToggle" onchange="toggleAddMode()">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span class="text-xs text-neutral-500 font-light" id="modeLabelManual">Manual</span>
+                </div>
+            </div>
+            <!-- OMDB Mode Fields -->
+            <div id="omdbFields">
+                <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                    <input type="text" id="apiKeyInput" oninput="saveApiKey()" placeholder="OMDB API Key" class="bg-neutral-900 border border-neutral-800 rounded-lg px-4 py-2.5 text-sm text-neutral-100 placeholder-neutral-600 focus:outline-none focus:border-neutral-500 transition">
+                    <input type="text" id="movieTitleInput" oninput="saveMovieTitle()" placeholder="Movie or Series Title" class="bg-neutral-900 border border-neutral-800 rounded-lg px-4 py-2.5 text-sm text-neutral-100 placeholder-neutral-600 focus:outline-none focus:border-neutral-500 transition sm:col-span-2">
+                    <select id="mediaTypeInput" onchange="saveSharedMediaType('omdb')" class="bg-neutral-900 border border-neutral-800 rounded-lg text-sm text-neutral-200 focus:outline-none focus:border-neutral-500 transition w-full">
+                        <option value="movie">Movie</option>
+                        <option value="series">TV Series</option>
+                    </select>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 mt-3">
+                    <input type="number" id="movieYearInput" placeholder="Release Year" onwheel="this.blur()" class="bg-neutral-900 border border-neutral-800 rounded-lg px-4 py-2.5 text-sm text-neutral-100 placeholder-neutral-600 focus:outline-none focus:border-neutral-500 transition [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none">
+                    <input type="number" id="personalRatingInput" min="0" max="10" step="0.1" placeholder="Your Rating (0-10)" onwheel="this.blur()" class="bg-neutral-900 border border-neutral-800 rounded-lg px-4 py-2.5 text-sm text-neutral-100 placeholder-neutral-600 focus:outline-none focus:border-neutral-500 transition [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none">
+                    <input type="text" id="addTagsInput" placeholder="Tag (Anime, Cartoon)" class="bg-neutral-900 border border-neutral-800 rounded-lg px-4 py-2.5 text-sm text-neutral-100 placeholder-neutral-600 focus:outline-none focus:border-neutral-500 transition">
+                    <select id="watchStatusInput" onchange="saveSharedWatchStatus('omdb')" class="bg-neutral-900 border border-neutral-800 rounded-lg text-sm text-neutral-200 focus:outline-none focus:border-neutral-500 transition w-full">
+                        <option value="Want to Watch">Want to Watch</option>
+                        <option value="Watched">Watched</option>
+                    </select>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 mt-3">
+                    <input type="text" id="addCommentInput" placeholder="Initial notes" class="sm:col-span-2 bg-neutral-900 border border-neutral-800 rounded-lg px-4 py-2.5 text-sm text-neutral-100 placeholder-neutral-600 focus:outline-none focus:border-neutral-500 transition">
+                    <button onclick="addMovie()" id="addBtn" class="sm:col-span-2 bg-neutral-100 hover:bg-white text-neutral-950 font-medium px-6 py-2.5 rounded-lg text-sm transition shadow-sm whitespace-nowrap">Add to Collection</button>
+                </div>
+            </div>
+            <!-- Manual Mode Fields -->
+            <div id="manualFields" style="display:none;">
+                <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                    <input type="text" id="manualTitleInput" placeholder="Title *" class="bg-neutral-900 border border-neutral-800 rounded-lg px-4 py-2.5 text-sm text-neutral-100 placeholder-neutral-600 focus:outline-none focus:border-neutral-500 transition">
+                    <input type="text" id="manualYearInput" placeholder="Year" class="bg-neutral-900 border border-neutral-800 rounded-lg px-4 py-2.5 text-sm text-neutral-100 placeholder-neutral-600 focus:outline-none focus:border-neutral-500 transition">
+                    <input type="text" id="manualPosterInput" placeholder="Poster URL (optional)" class="bg-neutral-900 border border-neutral-800 rounded-lg px-4 py-2.5 text-sm text-neutral-100 placeholder-neutral-600 focus:outline-none focus:border-neutral-500 transition">
+                    <select id="manualMediaType" onchange="saveSharedMediaType('manual')" class="bg-neutral-900 border border-neutral-800 rounded-lg text-sm text-neutral-200 focus:outline-none focus:border-neutral-500 transition w-full">
+                        <option value="movie">Movie</option>
+                        <option value="series">TV Series</option>
+                    </select>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 mt-3">
+                    <input type="text" id="manualGenresInput" placeholder="Genres (comma separated)" class="bg-neutral-900 border border-neutral-800 rounded-lg px-4 py-2.5 text-sm text-neutral-100 placeholder-neutral-600 focus:outline-none focus:border-neutral-500 transition">
+                    <input type="number" id="manualImdbRating" min="0" max="10" step="0.1" placeholder="IMDb Rating" onwheel="this.blur()" class="bg-neutral-900 border border-neutral-800 rounded-lg px-4 py-2.5 text-sm text-neutral-100 placeholder-neutral-600 focus:outline-none focus:border-neutral-500 transition [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none">
+                    <input type="number" id="manualPersonalRating" min="0" max="10" step="0.1" placeholder="Your Rating (0-10)" onwheel="this.blur()" class="bg-neutral-900 border border-neutral-800 rounded-lg px-4 py-2.5 text-sm text-neutral-100 placeholder-neutral-600 focus:outline-none focus:border-neutral-500 transition [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none">
+                    <select id="manualWatchStatus" onchange="saveSharedWatchStatus('manual')" class="bg-neutral-900 border border-neutral-800 rounded-lg text-sm text-neutral-200 focus:outline-none focus:border-neutral-500 transition w-full">
+                        <option value="Want to Watch">Want to Watch</option>
+                        <option value="Watched">Watched</option>
+                    </select>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 mt-3">
+                    <input type="text" id="manualTagsInput" placeholder="Custom tags (comma separated)" class="sm:col-span-3 bg-neutral-900 border border-neutral-800 rounded-lg px-4 py-2.5 text-sm text-neutral-100 placeholder-neutral-600 focus:outline-none focus:border-neutral-500 transition">
+                    <input type="text" id="manualCommentInput" placeholder="Notes" class="sm:col-span-3 bg-neutral-900 border border-neutral-800 rounded-lg px-4 py-2.5 text-sm text-neutral-100 placeholder-neutral-600 focus:outline-none focus:border-neutral-500 transition">
+                    <button onclick="addManualMovie()" id="manualAddBtn" class="sm:col-span-6 bg-neutral-100 hover:bg-white text-neutral-950 font-medium px-6 py-2.5 rounded-lg text-sm transition shadow-sm whitespace-nowrap">Add Manually</button>
+                </div>
+            </div>
+        </div>
+        <!-- Search -->
+        <div class="md:col-span-4">
+            <input type="text" id="searchInput" oninput="handleSearchInput()" placeholder="Search title, comment, or custom tags..." class="w-full bg-neutral-900 border border-neutral-800 rounded-lg px-4 py-2.5 text-sm text-neutral-100 placeholder-neutral-600 focus:outline-none focus:border-neutral-500 transition">
+        </div>
+        <!-- Filter by Genres -->
+        <div class="md:col-span-4">
+            <label class="block text-xs uppercase tracking-widest font-medium text-neutral-400 mb-2">Filter by Genres (Click: Include | Double-click: Exclude)</label>
+            <div id="genreFilterContainer" class="flex flex-wrap gap-2"></div>
+        </div>
+        <!-- Filter by Custom Tags -->
+        <div class="md:col-span-4">
+            <label class="block text-xs uppercase tracking-widest font-medium text-neutral-400 mb-2">Filter by Custom Tags (Click: Include | Double-click: Exclude)</label>
+            <div id="tagFilterContainer" class="flex flex-wrap gap-2"></div>
+        </div>
+        <!-- Status, Type, Rating, Year, Sort -->
+        <div>
+            <label class="block text-xs uppercase tracking-widest font-medium text-neutral-400 mb-2">Watch Status</label>
+            <select id="statusFilter" onchange="handleStatusFilterChange()" class="w-full bg-neutral-900 border border-neutral-800 rounded-lg text-sm text-neutral-200 focus:outline-none focus:border-neutral-500 transition">
+                <option value="all">All Statuses</option>
+                <option value="Want to Watch">Want to Watch</option>
+                <option value="Watched">Watched</option>
+            </select>
+        </div>
+        <div>
+            <label class="block text-xs uppercase tracking-widest font-medium text-neutral-400 mb-2">Media Type</label>
+            <select id="typeFilter" onchange="handleFilterChange()" class="w-full bg-neutral-900 border border-neutral-800 rounded-lg text-sm text-neutral-200 focus:outline-none focus:border-neutral-500 transition">
+                <option value="all">All Types</option>
+                <option value="movie">Movies</option>
+                <option value="series">TV Series</option>
+            </select>
+        </div>
+        <div>
+            <label class="block text-xs uppercase tracking-widest font-medium text-neutral-400 mb-2">Rating Filter</label>
+            <input type="text" id="ratingRangeInput" oninput="handleRatingRangeInput()" placeholder="0 - 10" class="w-full bg-neutral-900 border border-neutral-800 rounded-lg px-4 py-2.5 text-sm text-neutral-100 placeholder-neutral-600 focus:outline-none focus:border-neutral-500 transition">
+        </div>
+        <div>
+            <label class="block text-xs uppercase tracking-widest font-medium text-neutral-400 mb-2">Year Filter</label>
+            <input type="text" id="yearRangeInput" oninput="handleYearRangeInput()" placeholder="1990 - 2000" class="w-full bg-neutral-900 border border-neutral-800 rounded-lg px-4 py-2.5 text-sm text-neutral-100 placeholder-neutral-600 focus:outline-none focus:border-neutral-500 transition">
+        </div>
+        <div>
+            <label class="block text-xs uppercase tracking-widest font-medium text-neutral-400 mb-2">Sort By</label>
+            <select id="ratingSort" onchange="handleSortChange()" class="w-full bg-neutral-900 border border-neutral-800 rounded-lg text-sm text-neutral-200 focus:outline-none focus:border-neutral-500 transition">
+                <option value="none">Default Order</option>
+                <option value="latest">Last Added (Newest)</option>
+                <option value="desc">Highest Rating</option>
+                <option value="asc">Lowest Rating</option>
+                <option value="title">Title (A-Z)</option>
+                <option value="year">Release Year (Newest)</option>
+                <option value="year-asc">Release Year (Oldest)</option>
+            </select>
+        </div>
+        <!-- Bulk Operations -->
+        <div id="bulkOperationsContainer" class="md:col-span-4 flex flex-wrap items-center gap-3 pt-2 border-t border-neutral-800/60" style="display:none;">
+            <div class="flex items-center gap-3">
+                 <button onclick="bulkDelete()" class="bg-red-950/40 hover:bg-red-950/60 border border-red-800 text-red-300 font-medium px-4 py-2.5 rounded-lg text-sm transition">Delete Selected</button>
+            </div>
+            <div class="flex items-center gap-3">
+                <select id="bulkStatusAction" class="bg-neutral-900 border border-neutral-800 rounded-lg px-3 py-2.5 text-sm text-neutral-200 focus:outline-none focus:border-neutral-500 transition">
+                    <option value="">Change Status...</option>
+                    <option value="Watched">Mark as Watched</option>
+                    <option value="Want to Watch">Mark as Want to Watch</option>
+                </select>
+                <button onclick="bulkStatusUpdate()" class="bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 font-medium px-4 py-2.5 rounded-lg text-sm transition">Apply Status</button>
+                <button onclick="bulkAddTags()" class="bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 font-medium px-4 py-2.5 rounded-lg text-sm transition">+ Tags</button>
+                <button onclick="bulkRemoveTags()" class="bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 font-medium px-4 py-2.5 rounded-lg text-sm transition">- Tags</button>
+                <button onclick="deselectAll()" class="bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 font-medium px-4 py-2.5 rounded-lg text-sm transition">Deselect All</button>
+                <span id="selectedCount" class="bg-neutral-900/60 border border-neutral-800 text-neutral-400 text-xs px-3 py-2.5 rounded-lg font-light">0 selected</span>
+            </div>
+        </div>
+        <!-- Actions + Reorder toggle -->
+        <div class="md:col-span-4 flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-neutral-800/60">
+            <div class="flex flex-wrap items-center gap-3">
+                <button onclick="exportData()" class="bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 font-medium px-4 py-2.5 rounded-lg text-sm transition">Export</button>
+                <label class="bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 font-medium px-4 py-2.5 rounded-lg text-sm transition cursor-pointer">
+                    Import
+                    <input type="file" id="fileInput" accept=".json" onchange="importData(event)" class="hidden">
+                </label>
+                <span id="movieCountIndicator" class="bg-neutral-900/60 border border-neutral-800 text-neutral-400 text-xs px-3 py-2.5 cursor-default rounded-lg font-light">0 items</span>
+                <span id="genreAvgRatingIndicator" class="bg-neutral-900/60 border border-neutral-800 text-neutral-400 text-xs px-3 py-2.5 cursor-default rounded-lg font-light">Avg: N/A</span>
+                <button onclick="printPDF()" class="bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 font-medium px-4 py-2.5 rounded-lg text-sm transition flex items-center gap-1.5"><span>Print PDF</span></button>
+                <button onclick="toggleEditMode()" id="editModeToggle" class="bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-400 hover:text-neutral-200 font-medium px-4 py-2.5 rounded-lg text-sm transition flex items-center gap-1.5">
+                    <span>✎</span> Edit Mode
+                </button>
+                <button onclick="toggleReorderMode()" id="reorderToggle" class="reorder-toggle-btn bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-400 hover:text-neutral-200 font-medium px-4 py-2.5 rounded-lg text-sm transition flex items-center gap-1.5">
+                    <span>⇅</span> Reorder
+                </button>
+            </div>
+            <button onclick="resetFilters()" class="bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-400 hover:text-neutral-200 font-medium px-4 py-2.5 rounded-lg text-sm transition">Reset Filters</button>
+        </div>
+    </div>
+    <!-- Status Message with Progress Bar -->
+    <div id="statusMessage" class="hidden mb-6 p-4 rounded-xl text-xs font-medium tracking-wide"></div>
+    <div id="progressContainer" class="hidden mb-6 bg-neutral-900/60 rounded-xl p-4 border border-neutral-800/60">
+        <div class="flex justify-between items-center mb-2">
+            <span id="progressLabel" class="text-xs text-neutral-400 font-light">Exporting...</span>
+            <span id="progressPercent" class="text-xs text-neutral-400 font-light">0%</span>
+        </div>
+        <div class="w-full bg-neutral-800/60 rounded-full h-2 overflow-hidden">
+            <div id="progressBar" class="bg-gradient-to-r from-sky-500 to-cyan-400 h-2 rounded-full transition-all duration-300" style="width: 0%;"></div>
+        </div>
+    </div>
+    <!-- Grid -->
+    <div id="movieGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mb-8"></div>
+    <!-- Pagination -->
+    <div id="paginationContainer" class="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-neutral-900">
+        <div class="flex items-center gap-2">
+            <label for="itemsPerPageSelect" class="text-xs text-neutral-400 font-light">Show:</label>
+            <select id="itemsPerPageSelect" onchange="changeItemsPerPage()" class="bg-neutral-900 border border-neutral-800 rounded-lg px-3 py-1.5 text-xs text-neutral-200 focus:outline-none focus:border-neutral-500 transition">
+                <option value="8">8 per page</option>
+                <option value="12" selected>12 per page</option>
+                <option value="24">24 per page</option>
+                <option value="48">48 per page</option>
+                <option value="all">Show All</option>
+            </select>
+        </div>
+        <div id="paginationButtons" class="flex items-center gap-1.5"></div>
+    </div>
+</div>
+
+<!-- PDF export container -->
+<div id="pdfExportContainer" style="display:none; background:#0b0b0d; color:#f5f5f5; width:794px; margin:0; padding:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; box-sizing:border-box;">
+    <div id="pdfGrid" style="margin:0; padding:0; width:794px; box-sizing:border-box;"></div>
+</div>
+
+<script>
+    // ----- DATA -----
+    let movies = [];
+    let tagColorMap = new Map();
+    let isManualMode = false;
+    let isUpdatingSelects = false;
+    let editMode = false;
+    let reorderMode = false;
+    let dragData = null;
+    let savedSortBeforeReorder = null;
+    let wasLatestMode = false;
+    let bulkSelection = new Set();
+    let isBulkDragging = false;
+    
+    try {
+        const stored = localStorage.getItem('cinevault_movies');
+        movies = stored ? JSON.parse(stored) : [];
+        if (!Array.isArray(movies)) movies = [];
+    } catch (e) { movies = []; localStorage.removeItem('cinevault_movies'); }
+
+    try {
+        const storedColors = localStorage.getItem('cinevault_tag_colors');
+        if (storedColors) {
+            const parsed = JSON.parse(storedColors);
+            tagColorMap = new Map(parsed);
+        }
+    } catch (e) { tagColorMap = new Map(); }
+
+    try {
+        const storedMode = localStorage.getItem('cinevault_manual_mode');
+        if (storedMode === 'true') {
+            isManualMode = true;
+            document.getElementById('manualToggle').checked = true;
+            toggleAddMode();
+        }
+    } catch (e) {}
+
+    editMode = false;
+    let selectedGenres = new Set();
+    let excludedGenres = new Set();
+    let selectedTags = new Set();
+    let excludedTags = new Set();
+    let currentPage = 1;
+    let itemsPerPage = 12;
+    let currentFilteredMovies = [];
+    let selectedItems = new Set();
+    let selectMode = false;
+
+    // ----- ESC KEY HANDLER - clears both selection modes silently -----
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            if (reorderMode) {
+                clearBulkSelection();
+            }
+            if (selectMode) {
+                selectedItems.clear();
+                selectMode = false;
+                updateSelectedCount();
+                filterAndSortMovies();
+            }
+        }
+    });
+
+    // ----- TAG COLORS -----
+    const tagColors = [
+        { bg: 'bg-rose-500/15', border: 'border-rose-400/40', text: 'text-rose-300', name: 'Rose' },
+        { bg: 'bg-pink-500/15', border: 'border-pink-400/40', text: 'text-pink-300', name: 'Pink' },
+        { bg: 'bg-fuchsia-500/15', border: 'border-fuchsia-400/40', text: 'text-fuchsia-300', name: 'Fuchsia' },
+        { bg: 'bg-purple-500/15', border: 'border-purple-400/40', text: 'text-purple-300', name: 'Purple' },
+        { bg: 'bg-violet-500/15', border: 'border-violet-400/40', text: 'text-violet-300', name: 'Violet' },
+        { bg: 'bg-indigo-500/15', border: 'border-indigo-400/40', text: 'text-indigo-300', name: 'Indigo' },
+        { bg: 'bg-blue-500/15', border: 'border-blue-400/40', text: 'text-blue-300', name: 'Blue' },
+        { bg: 'bg-sky-500/15', border: 'border-sky-400/40', text: 'text-sky-300', name: 'Sky' },
+        { bg: 'bg-cyan-500/15', border: 'border-cyan-400/40', text: 'text-cyan-300', name: 'Cyan' },
+        { bg: 'bg-teal-500/15', border: 'border-teal-400/40', text: 'text-teal-300', name: 'Teal' },
+        { bg: 'bg-emerald-500/15', border: 'border-emerald-400/40', text: 'text-emerald-300', name: 'Emerald' },
+        { bg: 'bg-green-500/15', border: 'border-green-400/40', text: 'text-green-300', name: 'Green' },
+        { bg: 'bg-lime-500/15', border: 'border-lime-400/40', text: 'text-lime-300', name: 'Lime' },
+        { bg: 'bg-yellow-500/15', border: 'border-yellow-400/40', text: 'text-yellow-300', name: 'Yellow' },
+        { bg: 'bg-amber-500/15', border: 'border-amber-400/40', text: 'text-amber-300', name: 'Amber' },
+        { bg: 'bg-orange-500/15', border: 'border-orange-400/40', text: 'text-orange-300', name: 'Orange' },
+        { bg: 'bg-red-500/15', border: 'border-red-400/40', text: 'text-red-300', name: 'Red' },
+        { bg: 'bg-stone-500/15', border: 'border-stone-400/40', text: 'text-stone-300', name: 'Stone' },
+        { bg: 'bg-neutral-500/15', border: 'border-neutral-400/40', text: 'text-neutral-300', name: 'Neutral' },
+        { bg: 'bg-zinc-500/15', border: 'border-zinc-400/40', text: 'text-zinc-300', name: 'Zinc' },
+    ];
+
+    function saveTagColors() {
+        try {
+            const array = Array.from(tagColorMap.entries());
+            localStorage.setItem('cinevault_tag_colors', JSON.stringify(array));
+        } catch (e) {}
+    }
+
+    function getTagColor(tag) {
+        if (!tagColorMap.has(tag)) {
+            const randomIndex = Math.floor(Math.random() * tagColors.length);
+            tagColorMap.set(tag, tagColors[randomIndex]);
+            saveTagColors();
+        }
+        return tagColorMap.get(tag);
+    }
+
+    function changeTagColor(tag) {
+        const modal = document.createElement('div');
+        modal.className = 'fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50';
+        modal.style.display = 'flex';
+        const currentColor = getTagColor(tag);
+        const content = document.createElement('div');
+        content.className = 'bg-neutral-900 rounded-2xl p-6 max-w-md w-full mx-4 border border-neutral-800 shadow-2xl';
+        content.innerHTML = `
+            <h3 class="text-sm font-medium text-neutral-200 mb-4">Change Color for "${tag}"</h3>
+            <div class="grid grid-cols-5 gap-2 mb-4">
+                ${tagColors.map((color, index) => `
+                    <button onclick="selectTagColor('${tag}', ${index})" 
+                            class="w-12 h-12 rounded-full border-2 ${color.border} ${color.bg} hover:scale-110 transition-transform ${currentColor === color ? 'ring-2 ring-white ring-offset-2 ring-offset-neutral-900' : ''}"
+                            title="${color.name}">
+                    </button>
+                `).join('')}
+            </div>
+            <div class="flex gap-2 justify-end">
+                <button onclick="this.closest('.fixed').remove()" class="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-xs text-neutral-300 transition">Cancel</button>
+                <button onclick="this.closest('.fixed').remove()" class="px-4 py-2 bg-neutral-100 hover:bg-white text-neutral-950 rounded-lg text-xs font-medium transition">Done</button>
+            </div>
+        `;
+        modal.appendChild(content);
+        document.body.appendChild(modal);
+        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+    }
+
+    function selectTagColor(tag, colorIndex) {
+        const color = tagColors[colorIndex];
+        tagColorMap.set(tag, color);
+        saveTagColors();
+        filterAndSortMovies();
+        updateFilterUIs();
+        const modal = document.querySelector('.fixed.inset-0');
+        if (modal) modal.remove();
+        showStatus(`Updated color for "${tag}"`, "success");
+    }
+
+    // ----- BULK REORDER FUNCTIONS -----
+    function toggleBulkSelection(id) {
+        if (!reorderMode) return;
+        if (bulkSelection.has(id)) {
+            bulkSelection.delete(id);
+        } else {
+            bulkSelection.add(id);
+        }
+        updateBulkVisuals();
+    }
+
+    function updateBulkVisuals() {
+        document.querySelectorAll('.movie-card').forEach(card => {
+            const cardId = parseInt(card.dataset.movieId);
+            if (bulkSelection.has(cardId)) {
+                card.classList.add('bulk-selected');
+            } else {
+                card.classList.remove('bulk-selected');
+            }
+        });
+    }
+
+    function clearBulkSelection() {
+        bulkSelection.clear();
+        document.querySelectorAll('.movie-card').forEach(card => {
+            card.classList.remove('bulk-selected');
+        });
+    }
+
+    // ----- REORDER MODE -----
+    function toggleReorderMode() {
+        reorderMode = !reorderMode;
+        const btn = document.getElementById('reorderToggle');
+        const sortSelect = document.getElementById('ratingSort');
+        
+        if (reorderMode) {
+            btn.classList.add('active');
+            document.body.classList.add('reorder-mode');
+            selectMode = false;
+            selectedItems.clear();
+            updateSelectedCount();
+            
+            if (editMode) {
+                editMode = false;
+                document.body.classList.remove('edit-mode');
+                document.getElementById('editModeToggle').classList.remove('edit-button');
+            }
+            savedSortBeforeReorder = sortSelect.value;
+            wasLatestMode = (savedSortBeforeReorder === 'latest');
+            
+            if (!wasLatestMode) {
+                sortSelect.value = 'none';
+            }
+            const perPageSelect = document.getElementById('itemsPerPageSelect');
+            perPageSelect.value = 'all';
+            itemsPerPage = 'all';
+            currentPage = 1;
+        } else {
+            btn.classList.remove('active');
+            document.body.classList.remove('reorder-mode');
+            if (savedSortBeforeReorder) {
+                sortSelect.value = savedSortBeforeReorder;
+                savedSortBeforeReorder = null;
+                wasLatestMode = false;
+            }
+            const perPageSelect = document.getElementById('itemsPerPageSelect');
+            perPageSelect.value = '12';
+            itemsPerPage = 12;
+            currentPage = 1;
+            clearBulkSelection();
+        }
+        filterAndSortMovies();
+    }
+
+    // ----- SAVE ORDER -----
+    function saveOrderFromDOM() {
+        if (!reorderMode) return;
+        const grid = document.getElementById('movieGrid');
+        const cardElements = grid.querySelectorAll('.movie-card');
+        if (cardElements.length === 0) return;
+        
+        const visibleIds = [];
+        cardElements.forEach(el => {
+            const id = parseInt(el.dataset.movieId);
+            if (!isNaN(id)) visibleIds.push(id);
+        });
+        
+        if (visibleIds.length === 0) return;
+        
+        const movieMap = new Map();
+        movies.forEach(m => movieMap.set(m.id, m));
+        
+        const orderedVisible = visibleIds.map(id => movieMap.get(id)).filter(Boolean);
+        const visibleIdSet = new Set(visibleIds);
+        const nonVisible = movies.filter(m => !visibleIdSet.has(m.id));
+        
+        let finalOrderedVisible = orderedVisible;
+        if (wasLatestMode) {
+            finalOrderedVisible = [...orderedVisible].reverse();
+        }
+        
+        const result = [...finalOrderedVisible, ...nonVisible];
+        
+        if (result.length === movies.length) {
+            movies = result;
+            saveToLocalStorage();
+        }
+    }
+
+    // ----- SHARED PERSISTENCE -----
+    function saveSharedWatchStatus(source) {
+        if (isUpdatingSelects) return;
+        let value;
+        if (source === 'omdb') {
+            value = document.getElementById('watchStatusInput').value;
+            const manualSelect = document.getElementById('manualWatchStatus');
+            if (manualSelect && manualSelect.value !== value) {
+                isUpdatingSelects = true;
+                manualSelect.value = value;
+                isUpdatingSelects = false;
+            }
+        } else if (source === 'manual') {
+            value = document.getElementById('manualWatchStatus').value;
+            const omdbSelect = document.getElementById('watchStatusInput');
+            if (omdbSelect && omdbSelect.value !== value) {
+                isUpdatingSelects = true;
+                omdbSelect.value = value;
+                isUpdatingSelects = false;
+            }
+        }
+        if (value) {
+            localStorage.setItem('cinevault_shared_watch_status', value);
+        }
+    }
+
+    function loadSharedWatchStatus() {
+        const savedStatus = localStorage.getItem('cinevault_shared_watch_status');
+        if (savedStatus) {
+            isUpdatingSelects = true;
+            document.getElementById('watchStatusInput').value = savedStatus;
+            const manualStatus = document.getElementById('manualWatchStatus');
+            if (manualStatus) {
+                manualStatus.value = savedStatus;
+            }
+            isUpdatingSelects = false;
+        }
+    }
+
+    function saveSharedMediaType(source) {
+        if (isUpdatingSelects) return;
+        let value;
+        if (source === 'omdb') {
+            value = document.getElementById('mediaTypeInput').value;
+            const manualSelect = document.getElementById('manualMediaType');
+            if (manualSelect && manualSelect.value !== value) {
+                isUpdatingSelects = true;
+                manualSelect.value = value;
+                isUpdatingSelects = false;
+            }
+        } else if (source === 'manual') {
+            value = document.getElementById('manualMediaType').value;
+            const omdbSelect = document.getElementById('mediaTypeInput');
+            if (omdbSelect && omdbSelect.value !== value) {
+                isUpdatingSelects = true;
+                omdbSelect.value = value;
+                isUpdatingSelects = false;
+            }
+        }
+        if (value) {
+            localStorage.setItem('cinevault_shared_media_type', value);
+        }
+    }
+
+    function loadSharedMediaType() {
+        const savedMediaType = localStorage.getItem('cinevault_shared_media_type');
+        if (savedMediaType) {
+            isUpdatingSelects = true;
+            document.getElementById('mediaTypeInput').value = savedMediaType;
+            const manualMediaType = document.getElementById('manualMediaType');
+            if (manualMediaType) {
+                manualMediaType.value = savedMediaType;
+            }
+            isUpdatingSelects = false;
+        }
+    }
+
+    function toggleAddMode() {
+        const toggle = document.getElementById('manualToggle');
+        isManualMode = toggle.checked;
+        localStorage.setItem('cinevault_manual_mode', String(isManualMode));
+        const omdbFields = document.getElementById('omdbFields');
+        const manualFields = document.getElementById('manualFields');
+        const modeLabel = document.getElementById('modeLabel');
+        const modeLabelManual = document.getElementById('modeLabelManual');
+        if (isManualMode) {
+            omdbFields.style.display = 'none';
+            manualFields.style.display = 'block';
+            modeLabel.style.color = '#52525b';
+            modeLabelManual.style.color = '#e4e4e7';
+        } else {
+            omdbFields.style.display = 'block';
+            manualFields.style.display = 'none';
+            modeLabel.style.color = '#e4e4e7';
+            modeLabelManual.style.color = '#52525b';
+        }
+    }
+
+    function addManualMovie() {
+        const title = document.getElementById('manualTitleInput').value.trim();
+        if (!title) { showStatus("Please enter a title.", "error"); return; }
+        const year = document.getElementById('manualYearInput').value.trim() || "N/A";
+        const poster = document.getElementById('manualPosterInput').value.trim() || "https://via.placeholder.com/300x450?text=No+Poster";
+        const genresRaw = document.getElementById('manualGenresInput').value.trim();
+        const genres = genresRaw ? genresRaw.split(',').map(g => g.trim()).filter(g => g.length > 0) : ["Unknown"];
+        const imdbRating = parseFloat(document.getElementById('manualImdbRating').value) || 0;
+        const personalRating = parseFloat(document.getElementById('manualPersonalRating').value) || 0;
+        const mediaType = document.getElementById('manualMediaType').value;
+        const watchStatus = document.getElementById('manualWatchStatus').value;
+        const tagsRaw = document.getElementById('manualTagsInput').value.trim();
+        const customTags = tagsRaw ? tagsRaw.split(',').map(t => t.trim()).filter(t => t.length > 0) : [];
+        const comment = document.getElementById('manualCommentInput').value.trim();
+        saveSharedWatchStatus('manual');
+        saveSharedMediaType('manual');
+        if (personalRating < 0 || personalRating > 10) { showStatus("Your rating must be between 0-10.", "error"); return; }
+        if (imdbRating < 0 || imdbRating > 10) { showStatus("IMDb rating must be between 0-10.", "error"); return; }
+        if (movies.some(m => m.title.toLowerCase() === title.toLowerCase() && m.year === year && m.mediaType === mediaType)) {
+            showStatus("Already in collection.", "error");
+            return;
+        }
+        const newItem = {
+            id: Date.now(),
+            title: title,
+            poster: poster,
+            genres: genres,
+            imdbRating: imdbRating,
+            personalRating: personalRating,
+            watchStatus: watchStatus,
+            year: year,
+            mediaType: mediaType,
+            comment: comment,
+            customTags: customTags,
+            seasons: 99,
+            episodes: 99,
+            currentSeason: 1,
+            currentEpisode: 1
+        };
+        movies.push(newItem);
+        saveToLocalStorage();
+        document.getElementById('manualTitleInput').value = "";
+        document.getElementById('manualYearInput').value = "";
+        document.getElementById('manualPosterInput').value = "";
+        document.getElementById('manualGenresInput').value = "";
+        document.getElementById('manualImdbRating').value = "";
+        document.getElementById('manualPersonalRating').value = "";
+        document.getElementById('manualTagsInput').value = "";
+        document.getElementById('manualCommentInput').value = "";
+        showStatus(`Added "${title}" manually.`, "success");
+        currentPage = 1;
+        updateFilterUIs();
+        filterAndSortMovies();
+    }
+
+    // ----- EDIT FUNCTIONS -----
+    function editPoster(id) {
+        if (!editMode) return;
+        const movie = movies.find(m => m.id === id);
+        if (!movie) return;
+        const newPoster = prompt(`Change poster URL for "${movie.title}":`, movie.poster);
+        if (newPoster === null) return;
+        if (newPoster.trim() === "") {
+            movie.poster = "https://via.placeholder.com/300x450?text=No+Poster";
+        } else {
+            movie.poster = newPoster.trim();
+        }
+        saveToLocalStorage();
+        filterAndSortMovies();
+    }
+
+    function editGenres(id) {
+        if (!editMode) return;
+        const movie = movies.find(m => m.id === id);
+        if (!movie) return;
+        const currentGenres = (movie.genres || []).join(', ');
+        const newGenresRaw = prompt(`Edit genres for "${movie.title}" (comma separated):`, currentGenres);
+        if (newGenresRaw === null) return;
+        const newGenres = newGenresRaw.trim() ? newGenresRaw.split(',').map(g => g.trim()).filter(g => g.length > 0) : ["Unknown"];
+        movie.genres = newGenres;
+        saveToLocalStorage();
+        updateFilterUIs();
+        filterAndSortMovies();
+    }
+
+    function editTitle(id) {
+        if (!editMode) return;
+        const movie = movies.find(m => m.id === id);
+        if (!movie) return;
+        const newTitle = prompt(`Edit title for "${movie.title}":`, movie.title);
+        if (newTitle === null || newTitle.trim() === "") return;
+        movie.title = newTitle.trim();
+        saveToLocalStorage();
+        filterAndSortMovies();
+    }
+
+    function toggleEditMode() {
+        editMode = !editMode;
+        if (editMode) {
+            if (reorderMode) {
+                reorderMode = false;
+                document.body.classList.remove('reorder-mode');
+                document.getElementById('reorderToggle').classList.remove('active');
+                if (savedSortBeforeReorder) {
+                    document.getElementById('ratingSort').value = savedSortBeforeReorder;
+                    savedSortBeforeReorder = null;
+                    wasLatestMode = false;
+                }
+                const perPageSelect = document.getElementById('itemsPerPageSelect');
+                perPageSelect.value = '12';
+                itemsPerPage = 12;
+                currentPage = 1;
+                clearBulkSelection();
+            }
+            document.body.classList.add('edit-mode');
+            document.getElementById('editModeToggle').classList.add('edit-button');
+        } else {
+            document.body.classList.remove('edit-mode');
+            document.getElementById('editModeToggle').classList.remove('edit-button');
+        }
+        filterAndSortMovies();
+    }
+
+    // ----- PROGRESS BAR -----
+    function showProgress(label, percent) {
+        const container = document.getElementById('progressContainer');
+        const bar = document.getElementById('progressBar');
+        const labelEl = document.getElementById('progressLabel');
+        const percentEl = document.getElementById('progressPercent');
+        container.classList.remove('hidden');
+        labelEl.textContent = label;
+        percentEl.textContent = `${Math.round(percent)}%`;
+        bar.style.width = `${Math.min(percent, 100)}%`;
+        if (percent >= 100) {
+            setTimeout(() => {
+                container.classList.add('hidden');
+                bar.style.width = '0%';
+            }, 1500);
+        }
+    }
+
+    function hideProgress() {
+        const container = document.getElementById('progressContainer');
+        const bar = document.getElementById('progressBar');
+        container.classList.add('hidden');
+        bar.style.width = '0%';
+    }
+
+    function saveMovieTitle() {
+        const title = document.getElementById('movieTitleInput').value.trim();
+        localStorage.setItem('cinevault_last_title', title);
+    }
+
+    function handleYearRangeInput() {
+        handleFilterChange();
+    }
+
+    // ----- SEASON/EPISODE UPDATE FUNCTIONS -----
+    function updateSeasonCount(id) {
+        const movie = movies.find(m => m.id === id);
+        if (!movie) return;
+        const input = document.getElementById(`seasons_input_${id}`);
+        if (!input) return;
+        const val = parseInt(input.value);
+        if (isNaN(val) || val < 1) {
+            input.value = movie.seasons || 99;
+            return;
+        }
+        movie.seasons = val;
+        const display = document.getElementById(`seasons_display_${id}`);
+        if (display) display.textContent = val;
+        saveToLocalStorage();
+        filterAndSortMovies();
+    }
+
+    function updateEpisodeCount(id) {
+        const movie = movies.find(m => m.id === id);
+        if (!movie) return;
+        const input = document.getElementById(`episodes_input_${id}`);
+        if (!input) return;
+        const val = parseInt(input.value);
+        if (isNaN(val) || val < 1) {
+            input.value = movie.episodes || 99;
+            return;
+        }
+        movie.episodes = val;
+        const display = document.getElementById(`episodes_display_${id}`);
+        if (display) display.textContent = val;
+        saveToLocalStorage();
+        filterAndSortMovies();
+    }
+
+    // ----- SEASON/EPISODE REFRESH with dropdowns -----
+    async function refreshSeasonsEpisodes(id) {
+        const movie = movies.find(m => m.id === id);
+        if (!movie) return;
+        if (movie.mediaType !== 'series') {
+            showStatus("Season/Episode tracking only for TV Series.", "error");
+            return;
+        }
+        const apiKey = document.getElementById('apiKeyInput').value.trim();
+        if (!apiKey) {
+            showStatus("Enter OMDB API key.", "error");
+            return;
+        }
+        // Show loading
+        const seasonInput = document.getElementById(`seasons_input_${id}`);
+        const episodeInput = document.getElementById(`episodes_input_${id}`);
+        const seasonDisplay = document.getElementById(`seasons_display_${id}`);
+        const episodeDisplay = document.getElementById(`episodes_display_${id}`);
+        
+        try {
+            // Use title and year (first year only for series)
+            let searchYear = movie.year;
+            if (movie.year && movie.year.includes('–')) {
+                searchYear = movie.year.split('–')[0].trim();
+            }
+            let searchUrl = `https://www.omdbapi.com/?t=${encodeURIComponent(movie.title)}&type=series&apikey=${apiKey}`;
+            if (searchYear && searchYear !== 'N/A') {
+                searchUrl += `&y=${encodeURIComponent(searchYear)}`;
+            }
+            const searchResp = await fetch(searchUrl);
+            const searchData = await searchResp.json();
+            if (searchData.Response === "False") {
+                showStatus(`OMDB error: ${searchData.Error}`, "error");
+                return;
+            }
+            const totalSeasons = parseInt(searchData.totalSeasons) || 99;
+            let totalEpisodes = 0;
+            if (totalSeasons > 0 && totalSeasons < 30) {
+                for (let s = 1; s <= totalSeasons; s++) {
+                    const seasonUrl = `https://www.omdbapi.com/?i=${searchData.imdbID}&Season=${s}&apikey=${apiKey}`;
+                    const seasonResp = await fetch(seasonUrl);
+                    const seasonData = await seasonResp.json();
+                    if (seasonData.Response === "True" && seasonData.Episodes) {
+                        totalEpisodes += seasonData.Episodes.length;
+                    }
+                }
+            } else {
+                totalEpisodes = 99;
+            }
+            movie.seasons = totalSeasons;
+            movie.episodes = totalEpisodes;
+            saveToLocalStorage();
+            
+            // Update displays and inputs
+            if (seasonDisplay) seasonDisplay.textContent = totalSeasons;
+            if (episodeDisplay) episodeDisplay.textContent = totalEpisodes;
+            if (seasonInput) seasonInput.value = totalSeasons;
+            if (episodeInput) episodeInput.value = totalEpisodes;
+            
+            showStatus(`Updated ${movie.title}: ${totalSeasons} seasons, ${totalEpisodes} episodes`, "success");
+        } catch (err) {
+            showStatus("Network error fetching season/episode data.", "error");
+            console.error(err);
+        }
+    }
+
+    // ----- INIT -----
+    window.addEventListener('DOMContentLoaded', () => {
+        const savedApiKey = localStorage.getItem('cinevault_api_key');
+        if (savedApiKey) document.getElementById('apiKeyInput').value = savedApiKey;
+        const savedSort = localStorage.getItem('cinevault_sort_pref');
+        if (savedSort) document.getElementById('ratingSort').value = savedSort;
+        const savedStatus = localStorage.getItem('cinevault_status_pref');
+        if (savedStatus) document.getElementById('statusFilter').value = savedStatus;
+        const savedRatingRange = localStorage.getItem('cinevault_rating_range_pref');
+        if (savedRatingRange !== null) document.getElementById('ratingRangeInput').value = savedRatingRange;
+        loadSharedWatchStatus();
+        loadSharedMediaType();
+        movies.forEach(m => {
+            m.mediaType = m.mediaType || 'movie';
+            if (!Array.isArray(m.genres)) m.genres = ['Unknown'];
+            if (m.comment === undefined) m.comment = '';
+            if (!Array.isArray(m.customTags)) m.customTags = [];
+            if (m.seasons === undefined) m.seasons = 99;
+            if (m.episodes === undefined) m.episodes = 99;
+            if (m.currentSeason === undefined) m.currentSeason = 1;
+            if (m.currentEpisode === undefined) m.currentEpisode = 1;
+        });
+        saveToLocalStorage();
+        updateFilterUIs();
+        filterAndSortMovies();
+    });
+
+    function saveToLocalStorage() {
+        try { localStorage.setItem('cinevault_movies', JSON.stringify(movies)); } catch (e) {}
+    }
+    function saveApiKey() { localStorage.setItem('cinevault_api_key', document.getElementById('apiKeyInput').value.trim()); }
+    function handleSortChange() {
+        localStorage.setItem('cinevault_sort_pref', document.getElementById('ratingSort').value);
+        if (reorderMode) {
+            const sortSelect = document.getElementById('ratingSort');
+            if (sortSelect.value !== 'latest') {
+                sortSelect.value = 'none';
+                wasLatestMode = false;
+            } else {
+                wasLatestMode = true;
+            }
+        }
+        handleFilterChange();
+    }
+    function handleStatusFilterChange() {
+        localStorage.setItem('cinevault_status_pref', document.getElementById('statusFilter').value);
+        handleFilterChange();
+    }
+    function handleRatingRangeInput() {
+        localStorage.setItem('cinevault_rating_range_pref', document.getElementById('ratingRangeInput').value);
+        handleFilterChange();
+    }
+
+    // ----- ADD MOVIE -----
+    async function addMovie() {
+        const apiKey = document.getElementById('apiKeyInput').value.trim();
+        const title = document.getElementById('movieTitleInput').value.trim();
+        const year = document.getElementById('movieYearInput').value.trim();
+        const mediaType = document.getElementById('mediaTypeInput').value;
+        const personalRatingVal = document.getElementById('personalRatingInput').value.trim();
+        const watchStatus = document.getElementById('watchStatusInput').value;
+        const initialComment = document.getElementById('addCommentInput').value.trim();
+        const tagsRaw = document.getElementById('addTagsInput').value.trim();
+        const addBtn = document.getElementById('addBtn');
+        if (!apiKey) { showStatus("Enter OMDB API key.", "error"); return; }
+        if (!title) { showStatus("Enter a title.", "error"); return; }
+        const personalRating = personalRatingVal !== "" ? parseFloat(personalRatingVal) : 0;
+        if (personalRating < 0 || personalRating > 10) { showStatus("Rating 0-10.", "error"); return; }
+        addBtn.disabled = true; addBtn.textContent = "Fetching...";
+        showStatus("Fetching from OMDB...", "info");
+        try {
+            let searchYear = year;
+            if (mediaType === 'series' && year && year.includes('–')) {
+                searchYear = year.split('–')[0].trim();
+            }
+            let url = `https://www.omdbapi.com/?t=${encodeURIComponent(title)}&type=${mediaType}&apikey=${apiKey}`;
+            if (searchYear) url += `&y=${encodeURIComponent(searchYear)}`;
+            const response = await fetch(url);
+            const data = await response.json();
+            if (data.Response === "False") { showStatus(`Error: ${data.Error}`, "error"); addBtn.disabled = false; addBtn.textContent = "Add to Collection"; return; }
+            const resolvedType = data.Type ? data.Type.toLowerCase() : mediaType;
+            if (movies.some(m => m.title.toLowerCase() === data.Title.toLowerCase() && m.year === data.Year && m.mediaType === resolvedType)) {
+                showStatus("Already in collection.", "error");
+                addBtn.disabled = false; addBtn.textContent = "Add to Collection"; return;
+            }
+            const poster = data.Poster && data.Poster !== "N/A" ? data.Poster : "https://via.placeholder.com/300x450?text=No+Poster";
+            const genres = data.Genre && data.Genre !== "N/A" ? data.Genre.split(", ").map(g => g.trim()) : ["Unknown"];
+            const imdbRating = data.imdbRating && data.imdbRating !== "N/A" ? parseFloat(data.imdbRating) : 0;
+            const customTags = tagsRaw ? tagsRaw.split(',').map(t => t.trim()).filter(t => t.length > 0) : [];
+            const totalSeasons = resolvedType === 'series' ? (parseInt(data.totalSeasons) || 99) : 99;
+            const newItem = {
+                id: Date.now(),
+                title: data.Title,
+                poster: poster,
+                genres: genres,
+                imdbRating: imdbRating,
+                personalRating: personalRating,
+                watchStatus: watchStatus,
+                year: data.Year || "N/A",
+                mediaType: resolvedType,
+                comment: initialComment,
+                customTags: customTags,
+                seasons: totalSeasons,
+                episodes: 99,
+                currentSeason: 1,
+                currentEpisode: 1
+            };
+            movies.push(newItem);
+            saveToLocalStorage();
+            document.getElementById('movieYearInput').value = "";
+            document.getElementById('personalRatingInput').value = "";
+            document.getElementById('addCommentInput').value = "";
+            document.getElementById('addTagsInput').value = "";
+            showStatus(`Added "${data.Title}".`, "success");
+            currentPage = 1;
+            updateFilterUIs();
+            filterAndSortMovies();
+        } catch (error) {
+            showStatus("Network error. Check API key or connection.", "error");
+            console.error(error);
+        } finally {
+            addBtn.disabled = false;
+            addBtn.textContent = "Add to Collection";
+        }
+    }
+
+    // ----- BULK OPERATIONS -----
+    function toggleSelect(id) {
+        if (reorderMode) return;
+        if (selectedItems.has(id)) {
+            selectedItems.delete(id);
+            if (selectedItems.size === 0) {
+                selectMode = false;
+            }
+        } else {
+            selectedItems.add(id);
+            selectMode = true;
+        }
+        updateSelectedCount();
+        filterAndSortMovies();
+    }
+
+    function deselectAll() {
+        selectedItems.clear();
+        selectMode = false;
+        updateSelectedCount();
+        filterAndSortMovies();
+    }
+
+    function getCurrentPageItems() {
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const endIndex = startIndex + itemsPerPage;
+        return currentFilteredMovies.slice(startIndex, endIndex);
+    }
+
+    function updateSelectedCount() {
+        const count = selectedItems.size;
+        document.getElementById('selectedCount').textContent = `${count} selected`;
+        const container = document.getElementById('bulkOperationsContainer');
+        if (count > 0) {
+            container.style.display = 'flex';
+        } else {
+            container.style.display = 'none';
+        }
+    }
+
+    function bulkStatusUpdate() {
+        const action = document.getElementById('bulkStatusAction').value;
+        if (!action) { 
+            showStatus("Select a status action first.", "error"); 
+            setTimeout(() => {
+                const el = document.getElementById('statusMessage');
+                el.classList.add('hidden');
+            }, 2000);
+            return; 
+        }
+        if (selectedItems.size === 0) { 
+            showStatus("No items selected. Double-click a card to select it.", "error"); 
+            return; 
+        }
+        if (confirm(`Update ${selectedItems.size} item(s) to "${action}"?`)) {
+            let count = 0;
+            movies.forEach(movie => {
+                if (selectedItems.has(movie.id)) {
+                    movie.watchStatus = action;
+                    count++;
+                }
+            });
+            saveToLocalStorage();
+            selectedItems.clear();
+            selectMode = false;
+            updateSelectedCount();
+            filterAndSortMovies();
+            showStatus(`Updated ${count} item(s) to "${action}".`, "success");
+        }
+    }
+
+    function bulkAddTags() {
+        if (selectedItems.size === 0) { showStatus("No items selected. Double-click a card to select it.", "error"); return; }
+        const tagsRaw = prompt(`Add tags to ${selectedItems.size} selected item(s). Enter tags separated by commas:`, "");
+        if (tagsRaw === null) return;
+        const newTags = tagsRaw.trim() ? tagsRaw.split(',').map(t => t.trim()).filter(t => t.length > 0) : [];
+        if (newTags.length === 0) { showStatus("No valid tags entered.", "error"); return; }
+        let count = 0;
+        movies.forEach(movie => {
+            if (selectedItems.has(movie.id)) {
+                if (!Array.isArray(movie.customTags)) movie.customTags = [];
+                newTags.forEach(tag => {
+                    if (!movie.customTags.includes(tag)) {
+                        movie.customTags.push(tag);
+                        count++;
+                    }
+                });
+            }
+        });
+        saveToLocalStorage();
+        selectedItems.clear();
+        selectMode = false;
+        updateSelectedCount();
+        updateFilterUIs();
+        filterAndSortMovies();
+        showStatus(`Added ${count} tag(s) to selected items.`, "success");
+    }
+
+    function bulkRemoveTags() {
+        if (selectedItems.size === 0) { showStatus("No items selected. Double-click a card to select it.", "error"); return; }
+        const allTags = new Set();
+        movies.forEach(movie => {
+            if (selectedItems.has(movie.id) && Array.isArray(movie.customTags)) {
+                movie.customTags.forEach(tag => allTags.add(tag));
+            }
+        });
+        if (allTags.size === 0) { showStatus("Selected items have no tags to remove.", "error"); return; }
+        const tagsList = Array.from(allTags).join(', ');
+        const tagsToRemoveRaw = prompt(`Remove tags from ${selectedItems.size} selected item(s).\nAvailable tags: ${tagsList}\n\nEnter tags to remove (comma separated):`, "");
+        if (tagsToRemoveRaw === null) return;
+        const tagsToRemove = tagsToRemoveRaw.trim() ? tagsToRemoveRaw.split(',').map(t => t.trim()).filter(t => t.length > 0) : [];
+        if (tagsToRemove.length === 0) { showStatus("No valid tags entered.", "error"); return; }
+        let count = 0;
+        movies.forEach(movie => {
+            if (selectedItems.has(movie.id) && Array.isArray(movie.customTags)) {
+                tagsToRemove.forEach(tag => {
+                    const index = movie.customTags.indexOf(tag);
+                    if (index !== -1) {
+                        movie.customTags.splice(index, 1);
+                        count++;
+                    }
+                });
+            }
+        });
+        saveToLocalStorage();
+        selectedItems.clear();
+        selectMode = false;
+        updateSelectedCount();
+        updateFilterUIs();
+        filterAndSortMovies();
+        showStatus(`Removed ${count} tag(s) from selected items.`, "success");
+    }
+
+    function bulkDelete() {
+        if (selectedItems.size === 0) { showStatus("No items selected. Double-click a card to select it.", "error"); return; }
+        if (confirm(`Delete ${selectedItems.size} item(s) permanently? This cannot be undone.`)) {
+            let count = 0;
+            movies = movies.filter(movie => {
+                if (selectedItems.has(movie.id)) {
+                    count++;
+                    return false;
+                }
+                return true;
+            });
+            saveToLocalStorage();
+            selectedItems.clear();
+            selectMode = false;
+            updateSelectedCount();
+            updateFilterUIs();
+            filterAndSortMovies();
+            showStatus(`Deleted ${count} item(s).`, "info");
+        }
+    }
+
+    function editTags(id) {
+        const movie = movies.find(m => m.id === id);
+        if (!movie) return;
+        const currentTags = (movie.customTags || []).join(', ');
+        const newTagsRaw = prompt(`Edit custom tags for "${movie.title}" (comma separated):`, currentTags);
+        if (newTagsRaw === null) return;
+        const newTags = newTagsRaw.trim() ? newTagsRaw.split(',').map(t => t.trim()).filter(t => t.length > 0) : [];
+        movie.customTags = newTags;
+        saveToLocalStorage();
+        updateFilterUIs();
+        filterAndSortMovies();
+        showStatus(`Tags updated for "${movie.title}".`, "success");
+    }
+
+    // ----- FILTER UI -----
+    function updateFilterUIs() {
+        updateGenreFiltersUI();
+        updateTagFiltersUI();
+    }
+
+    function updateGenreFiltersUI() {
+        const genreSet = new Set();
+        movies.forEach(m => { if (Array.isArray(m.genres)) m.genres.forEach(g => genreSet.add(g)); });
+        selectedGenres.forEach(g => { if (!genreSet.has(g)) selectedGenres.delete(g); });
+        excludedGenres.forEach(g => { if (!genreSet.has(g)) excludedGenres.delete(g); });
+        const container = document.getElementById('genreFilterContainer');
+        container.innerHTML = '';
+        if (genreSet.size === 0) {
+            container.innerHTML = '<span class="text-xs text-neutral-600">No genres yet.</span>';
+            return;
+        }
+        genreSet.forEach(genre => {
+            const isSelected = selectedGenres.has(genre);
+            const isExcluded = excludedGenres.has(genre);
+            const pill = document.createElement('button');
+            pill.type = 'button';
+            let cls = 'bg-neutral-900 text-neutral-400 border-neutral-800 hover:border-neutral-700 hover:text-neutral-200';
+            if (isSelected) cls = 'bg-neutral-100 text-neutral-950 border-neutral-100 font-medium';
+            else if (isExcluded) cls = 'bg-red-950/80 text-red-300 border-red-800 font-medium line-through';
+            pill.className = `text-xs px-3 py-1.5 rounded-full border transition cursor-pointer font-light ${cls}`;
+            pill.textContent = genre;
+            let clickTimer = null;
+            pill.onclick = (e) => {
+                e.preventDefault();
+                if (clickTimer) {
+                    clearTimeout(clickTimer); clickTimer = null;
+                    if (selectedGenres.has(genre)) selectedGenres.delete(genre);
+                    if (excludedGenres.has(genre)) excludedGenres.delete(genre);
+                    else excludedGenres.add(genre);
+                    currentPage = 1;
+                    updateFilterUIs();
+                    filterAndSortMovies();
+                    showStatus(`Excluded genre: ${genre}`, "info");
+                } else {
+                    clickTimer = setTimeout(() => {
+                        clickTimer = null;
+                        if (excludedGenres.has(genre)) excludedGenres.delete(genre);
+                        if (selectedGenres.has(genre)) selectedGenres.delete(genre);
+                        else selectedGenres.add(genre);
+                        currentPage = 1;
+                        updateFilterUIs();
+                        filterAndSortMovies();
+                    }, 250);
+                }
+            };
+            container.appendChild(pill);
+        });
+    }
+
+    function updateTagFiltersUI() {
+        const tagSet = new Set();
+        movies.forEach(m => { if (Array.isArray(m.customTags)) m.customTags.forEach(t => tagSet.add(t)); });
+        selectedTags.forEach(t => { if (!tagSet.has(t)) selectedTags.delete(t); });
+        excludedTags.forEach(t => { if (!tagSet.has(t)) excludedTags.delete(t); });
+        const container = document.getElementById('tagFilterContainer');
+        container.innerHTML = '';
+        if (tagSet.size === 0) {
+            return;
+        }
+        tagSet.forEach(tag => {
+            const isSelected = selectedTags.has(tag);
+            const isExcluded = excludedTags.has(tag);
+            const color = getTagColor(tag);
+            const pill = document.createElement('button');
+            pill.type = 'button';
+            let cls = `${color.bg} ${color.text} border ${color.border} hover:${color.border} hover:brightness-110`;
+            if (isSelected) cls = `bg-neutral-100 text-neutral-950 border-neutral-100 font-medium`;
+            else if (isExcluded) cls = 'bg-red-950/80 text-red-300 border-red-800 font-medium line-through';
+            pill.className = `text-xs px-3 py-1.5 rounded-full border transition cursor-pointer font-light ${cls}`;
+            pill.textContent = tag;
+            let clickTimer = null;
+            pill.onclick = (e) => {
+                e.preventDefault();
+                if (clickTimer) {
+                    clearTimeout(clickTimer); clickTimer = null;
+                    if (selectedTags.has(tag)) selectedTags.delete(tag);
+                    if (excludedTags.has(tag)) excludedTags.delete(tag);
+                    else excludedTags.add(tag);
+                    currentPage = 1;
+                    updateFilterUIs();
+                    filterAndSortMovies();
+                    showStatus(`Excluded tag: ${tag}`, "info");
+                } else {
+                    clickTimer = setTimeout(() => {
+                        clickTimer = null;
+                        if (excludedTags.has(tag)) excludedTags.delete(tag);
+                        if (selectedTags.has(tag)) selectedTags.delete(tag);
+                        else selectedTags.add(tag);
+                        currentPage = 1;
+                        updateFilterUIs();
+                        filterAndSortMovies();
+                    }, 250);
+                }
+            };
+            container.appendChild(pill);
+        });
+    }
+
+    // ----- FILTER & SORT -----
+function filterAndSortMovies() {
+    const searchQuery = document.getElementById('searchInput').value.toLowerCase().trim();
+    const selectedStatus = document.getElementById('statusFilter').value;
+    const selectedType = document.getElementById('typeFilter').value;
+    const ratingRangeStr = document.getElementById('ratingRangeInput').value.trim();
+    const yearRangeStr = document.getElementById('yearRangeInput').value.trim();
+    let sortOrder = document.getElementById('ratingSort').value;
+
+    if (reorderMode && sortOrder !== 'latest') {
+        sortOrder = 'none';
+    }
+
+    let filtered = movies.filter(movie => {
+        const titleMatch = movie.title.toLowerCase().includes(searchQuery);
+        const commentMatch = (movie.comment || "").toLowerCase().includes(searchQuery);
+        const tagsMatch = Array.isArray(movie.customTags) ? movie.customTags.some(t => t.toLowerCase().includes(searchQuery)) : false;
+        const matchesSearch = titleMatch || commentMatch || tagsMatch;
+        const matchesStatus = selectedStatus === 'all' || movie.watchStatus === selectedStatus;
+        const itemType = (movie.mediaType || 'movie').toLowerCase();
+        const matchesType = selectedType === 'all' || itemType === selectedType;
+        let matchesRatingRange = true;
+        if (ratingRangeStr !== '') {
+            const ratingVal = movie.personalRating || 0;
+            if (ratingRangeStr.includes('-')) {
+                const parts = ratingRangeStr.split('-');
+                const min = parseFloat(parts[0].trim());
+                const max = parseFloat(parts[1].trim());
+                if (!isNaN(min) && !isNaN(max)) matchesRatingRange = ratingVal >= min && ratingVal <= max;
+            } else {
+                const exact = parseFloat(ratingRangeStr);
+                if (!isNaN(exact)) matchesRatingRange = ratingVal === exact;
+            }
+        }
+        let matchesYearRange = true;
+        if (yearRangeStr !== '') {
+            const yearVal = parseInt(movie.year);
+            if (!isNaN(yearVal)) {
+                if (yearRangeStr.includes('-')) {
+                    const parts = yearRangeStr.split('-');
+                    const min = parseInt(parts[0].trim());
+                    const max = parseInt(parts[1].trim());
+                    if (!isNaN(min) && !isNaN(max)) matchesYearRange = yearVal >= min && yearVal <= max;
+                } else {
+                    const exact = parseInt(yearRangeStr);
+                    if (!isNaN(exact)) matchesYearRange = yearVal === exact;
+                }
+            } else {
+                matchesYearRange = false;
+            }
+        }
+        let matchesGenres = true;
+        if (selectedGenres.size > 0) {
+            matchesGenres = Array.from(selectedGenres).every(g => Array.isArray(movie.genres) && movie.genres.includes(g));
+        }
+        let matchesExcludedGenres = true;
+        if (excludedGenres.size > 0) {
+            const hasExcluded = Array.from(excludedGenres).some(g => Array.isArray(movie.genres) && movie.genres.includes(g));
+            if (hasExcluded) matchesExcludedGenres = false;
+        }
+        let matchesTags = true;
+        if (selectedTags.size > 0) {
+            matchesTags = Array.from(selectedTags).some(t => Array.isArray(movie.customTags) && movie.customTags.includes(t));
+        }
+        let matchesExcludedTags = true;
+        if (excludedTags.size > 0) {
+            const hasExcludedTag = Array.from(excludedTags).some(t => Array.isArray(movie.customTags) && movie.customTags.includes(t));
+            if (hasExcludedTag) matchesExcludedTags = false;
+        }
+        return matchesSearch && matchesStatus && matchesType && matchesRatingRange && matchesYearRange && matchesGenres && matchesExcludedGenres && matchesTags && matchesExcludedTags;
+    });
+
+    if (sortOrder === 'latest') {
+        const orderMap = new Map();
+        movies.forEach((m, idx) => orderMap.set(m.id, idx));
+        filtered.sort((a, b) => (orderMap.get(b.id) || 0) - (orderMap.get(a.id) || 0));
+    } else if (sortOrder === 'asc') {
+        filtered.sort((a, b) => a.personalRating - b.personalRating);
+    } else if (sortOrder === 'desc') {
+        filtered.sort((a, b) => b.personalRating - a.personalRating);
+    } else if (sortOrder === 'title') {
+        filtered.sort((a, b) => a.title.localeCompare(b.title));
+    } else if (sortOrder === 'year') {
+        filtered.sort((a, b) => parseInt(b.year || 0) - parseInt(a.year || 0));
+    } else if (sortOrder === 'year-asc') {
+        filtered.sort((a, b) => parseInt(a.year || 0) - parseInt(b.year || 0));
+    } else {
+        const orderMap = new Map();
+        movies.forEach((m, idx) => orderMap.set(m.id, idx));
+        filtered.sort((a, b) => (orderMap.get(a.id) || 0) - (orderMap.get(b.id) || 0));
+    }
+
+    currentFilteredMovies = filtered;
+    updateGenreAverage(filtered);
+
+    let paginatedItems;
+    if (itemsPerPage === 'all' || reorderMode) { 
+        currentPage = 1; 
+        paginatedItems = filtered; 
+    } else {
+        const totalPages = Math.ceil(filtered.length / itemsPerPage) || 1;
+        if (currentPage > totalPages) currentPage = totalPages;
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        paginatedItems = filtered.slice(startIndex, startIndex + itemsPerPage);
+    }
+    renderMovies(paginatedItems, filtered.length);
+    renderPagination(filtered.length);
+}
+
+    function updateGenreAverage(filteredMovies) {
+        const el = document.getElementById('genreAvgRatingIndicator');
+        if (!el) return;
+        if (filteredMovies.length === 0) { el.textContent = 'Avg: N/A'; return; }
+        const total = filteredMovies.reduce((sum, m) => sum + (m.personalRating || 0), 0);
+        const avg = (total / filteredMovies.length).toFixed(1);
+        let label = 'Avg';
+        if (selectedGenres.size === 1) label = `${Array.from(selectedGenres)[0]} Avg`;
+        else if (selectedGenres.size > 1) label = 'Filtered Avg';
+        else if (selectedTags.size === 1) label = `Tag "${Array.from(selectedTags)[0]}" Avg`;
+        el.textContent = `${label}: ${avg}/10`;
+    }
+
+    // ----- RENDER -----
+    function renderMovies(moviesToRender, totalFilteredCount) {
+        const grid = document.getElementById('movieGrid');
+        grid.innerHTML = '';
+        const countIndicator = document.getElementById('movieCountIndicator');
+        if (countIndicator) {
+            const total = movies.length;
+            countIndicator.textContent = total === totalFilteredCount ? `${total} item${total===1?'':'s'}` : `${totalFilteredCount} of ${total} items`;
+        }
+        if (moviesToRender.length === 0) {
+            grid.innerHTML = `<div class="col-span-full text-center py-20 text-neutral-600"><p class="text-base font-light">No items match.</p><p class="text-xs font-light">Adjust filters or search.</p></div>`;
+            return;
+        }
+        moviesToRender.forEach(movie => {
+            const isSelected = selectedItems.has(movie.id);
+            const isBulkSelected = bulkSelection.has(movie.id);
+            const card = document.createElement('div');
+            card.className = `movie-card bg-neutral-900/40 rounded-xl overflow-hidden border ${isSelected ? 'border-sky-500/80 ring-2 ring-sky-500/30' : 'border-neutral-800/60'} ${isBulkSelected ? 'bulk-selected' : ''} flex flex-col justify-between hover:border-neutral-700 transition duration-300 group`;
+            card.dataset.movieId = movie.id;
+            
+            card.draggable = reorderMode;
+            
+            card.addEventListener('dragstart', (e) => {
+                if (!reorderMode) return;
+                e.dataTransfer.effectAllowed = 'move';
+                if (bulkSelection.size > 1 && bulkSelection.has(movie.id)) {
+                    const selectedIds = Array.from(bulkSelection);
+                    e.dataTransfer.setData('text/plain', JSON.stringify(selectedIds));
+                    document.querySelectorAll('.movie-card.bulk-selected').forEach(el => {
+                        el.classList.add('bulk-dragging');
+                    });
+                    isBulkDragging = true;
+                } else {
+                    e.dataTransfer.setData('text/plain', String(movie.id));
+                    isBulkDragging = false;
+                }
+                card.classList.add('dragging');
+            });
+            
+            card.addEventListener('dragend', (e) => {
+                if (!reorderMode) return;
+                card.classList.remove('dragging');
+                document.querySelectorAll('.movie-card.drag-over, .movie-card.drag-over-bulk').forEach(el => {
+                    el.classList.remove('drag-over', 'drag-over-bulk');
+                });
+                document.querySelectorAll('.movie-card.bulk-dragging').forEach(el => {
+                    el.classList.remove('bulk-dragging');
+                });
+                isBulkDragging = false;
+                saveOrderFromDOM();
+                filterAndSortMovies();
+                setTimeout(() => updateBulkVisuals(), 50);
+            });
+            
+            card.addEventListener('dragover', (e) => {
+                if (!reorderMode) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                
+                const dragDataStr = e.dataTransfer.getData('text/plain');
+                let isBulk = false;
+                try {
+                    const parsed = JSON.parse(dragDataStr);
+                    if (Array.isArray(parsed) && parsed.length > 1) isBulk = true;
+                } catch (err) {}
+                
+                document.querySelectorAll('.movie-card.drag-over, .movie-card.drag-over-bulk').forEach(el => {
+                    el.classList.remove('drag-over', 'drag-over-bulk');
+                });
+                
+                if (isBulk && bulkSelection.size > 1) {
+                    card.classList.add('drag-over-bulk');
+                } else {
+                    card.classList.add('drag-over');
+                }
+            });
+            
+            card.addEventListener('dragleave', (e) => {
+                if (!reorderMode) return;
+                card.classList.remove('drag-over', 'drag-over-bulk');
+            });
+            
+            card.addEventListener('drop', (e) => {
+                if (!reorderMode) return;
+                e.preventDefault();
+                card.classList.remove('drag-over', 'drag-over-bulk');
+                
+                const dragDataStr = e.dataTransfer.getData('text/plain');
+                let draggedIds = [];
+                try {
+                    const parsed = JSON.parse(dragDataStr);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        draggedIds = parsed;
+                    } else if (typeof parsed === 'number') {
+                        draggedIds = [parsed];
+                    }
+                } catch (err) {
+                    const singleId = parseInt(dragDataStr);
+                    if (!isNaN(singleId)) {
+                        draggedIds = [singleId];
+                    }
+                }
+                
+                if (draggedIds.length === 0) return;
+                if (draggedIds.length === 1 && draggedIds[0] === movie.id) return;
+                
+                const draggedIdSet = new Set(draggedIds);
+                const moviesToMove = movies.filter(m => draggedIdSet.has(m.id));
+                if (moviesToMove.length === 0) return;
+                
+                const targetIndex = movies.findIndex(m => m.id === movie.id);
+                if (targetIndex === -1) return;
+                
+                const remainingMovies = movies.filter(m => !draggedIdSet.has(m.id));
+                const newMovies = [];
+                let inserted = false;
+                for (let i = 0; i < remainingMovies.length; i++) {
+                    if (i === targetIndex && !inserted) {
+                        newMovies.push(...moviesToMove);
+                        inserted = true;
+                    }
+                    newMovies.push(remainingMovies[i]);
+                }
+                if (!inserted) {
+                    newMovies.push(...moviesToMove);
+                }
+                movies = newMovies;
+                saveToLocalStorage();
+                filterAndSortMovies();
+                setTimeout(() => updateBulkVisuals(), 50);
+            });
+            
+            card.onclick = (e) => {
+                if (e.target.closest('button') || e.target.closest('textarea') || e.target.closest('select') || e.target.closest('input')) {
+                    return;
+                }
+                if (reorderMode) {
+                    toggleBulkSelection(movie.id);
+                    return;
+                }
+                if (selectMode || isSelected) {
+                    toggleSelect(movie.id);
+                }
+            };
+            card.ondblclick = (e) => {
+                if (e.target.closest('button') || e.target.closest('textarea') || e.target.closest('select') || e.target.closest('input')) {
+                    return;
+                }
+                if (reorderMode) return;
+                if (!selectMode && !isSelected) {
+                    selectMode = true;
+                    toggleSelect(movie.id);
+                }
+            };
+            
+            const statusBadgeClass = movie.watchStatus === 'Watched' ? 'bg-emerald-950/60 text-emerald-300 border-emerald-900/50' : 'bg-neutral-800/60 text-neutral-400 border-neutral-700/50';
+            const itemType = movie.mediaType || 'movie';
+            const typeLabel = itemType === 'series' ? 'TV Series' : 'Movie';
+            const typeBadgeClass = itemType === 'series' ? 'bg-amber-950/80 text-amber-300 border-amber-800/80' : 'bg-neutral-950/80 text-neutral-300 border-neutral-800';
+            const safeGenres = Array.isArray(movie.genres) ? movie.genres : ['Unknown'];
+            const commentText = movie.comment || '';
+            const customTags = Array.isArray(movie.customTags) ? movie.customTags : [];
+
+            const tagsHtml = customTags.map(t => {
+                const color = getTagColor(t);
+                return `<span onclick="toggleTagFromCard('${t}')" 
+                             oncontextmenu="event.preventDefault(); changeTagColor('${t}')" 
+                             class="${color.bg} ${color.border} ${color.text} text-[10px] px-2 py-0.5 rounded-full border font-light cursor-pointer transition hover:brightness-110"
+                             title="Click to filter | Right-click to change color">#${t}</span>`;
+            }).join('');
+
+            const genresHtml = safeGenres.map(g => `
+                <span onclick="toggleGenreFromCard('${g}')" 
+                      class="bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-400 hover:text-neutral-200 text-[10px] px-2 py-0.5 rounded-full font-light cursor-pointer transition">
+                    ${g}
+                </span>
+            `).join('');
+
+            if (reorderMode) {
+                card.innerHTML = `
+                    <div class="relative overflow-hidden aspect-[2/3] bg-neutral-950 flex items-center justify-center card-poster">
+                        <img src="${movie.poster}" alt="${movie.title}" class="w-full h-full object-cover" />
+                        <div class="absolute bottom-3 right-3 bg-neutral-950/80 backdrop-blur-md px-3 py-1 rounded-full text-xs font-medium text-neutral-200 border border-neutral-800">
+                            ${movie.year}
+                        </div>
+                        <div class="absolute top-2 left-2 drag-handle text-2xl text-neutral-400">⠿</div>
+                        <div class="bulk-check">✓</div>
+                    </div>
+                    <div class="p-2 text-center movie-title">${movie.title}</div>
+                `;
+            } else {
+                card.innerHTML = `
+                    <div class="relative overflow-hidden aspect-[2/3] bg-neutral-950 flex items-center justify-center card-poster">
+                        <img src="${movie.poster}" alt="${movie.title}" class="w-full h-full object-cover group-hover:scale-102 transition duration-500">
+                        
+                        <button onclick="event.stopPropagation(); editPoster(${movie.id})" 
+                                class="poster-edit-btn absolute top-2 left-2 bg-neutral-950/80 backdrop-blur-md p-2 rounded-full border border-neutral-700 hover:border-neutral-400 transition shadow-lg">
+                            <svg class="w-4 h-4 text-neutral-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                            </svg>
+                        </button>
+
+                        <div class="absolute bottom-3 right-3 bg-neutral-950/80 backdrop-blur-md px-3 py-1 rounded-full text-xs font-medium text-neutral-200 border border-neutral-800 hover:border-neutral-500 transition shadow-sm cursor-default">
+                            ${movie.year}
+                        </div>
+
+                        <div onclick="editRating(${movie.id})" class="absolute top-3 right-3 bg-neutral-950/80 backdrop-blur-md px-3 py-1 rounded-full text-xs font-medium text-neutral-200 border border-neutral-800 hover:border-neutral-500 cursor-pointer transition flex items-center gap-1 shadow-sm"><span>⭐</span><span><strong class="text-white">${movie.personalRating}</strong>/10</span></div>
+                        
+                        <div class="absolute inset-x-0 bottom-0 h-1/2 bg-neutral-950/90 backdrop-blur-md p-3 flex flex-col justify-between ${selectMode ? 'opacity-0 pointer-events-none' : 'opacity-0 group-hover:opacity-100'} transition-opacity duration-300 border-t border-neutral-800/85">
+                            <div class="flex flex-col h-full">
+                                <textarea id="commentInput_${movie.id}" oninput="handleCommentInput(${movie.id})" placeholder="Add private notes..." onclick="event.stopPropagation()" class="w-full flex-grow bg-neutral-900 border border-neutral-800 rounded-lg p-2.5 text-xs text-neutral-100 placeholder-neutral-600 focus:outline-none focus:border-neutral-500 resize-none transition mb-2 cursor-default"></textarea>
+                                <button id="saveCommentBtn_${movie.id}" onclick="saveComment(${movie.id}, event)" class="hidden w-full bg-neutral-100 hover:bg-white text-neutral-950 text-xs py-1.5 rounded-lg font-medium transition shadow-sm">Save Comment</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="p-4 flex flex-col flex-grow justify-between">
+                        <div>
+                           <div class="mb-1">
+                                <div class="flex items-center gap-1 mb-0.5">
+                                    <span class="drag-handle text-neutral-500 mr-1">⠿</span>
+                                    <h3 class="font-medium text-sm text-neutral-200 tracking-tight line-clamp-1 flex-1">
+                                        ${movie.title}
+                                    </h3>
+                                    <button onclick="event.stopPropagation(); editTitle(${movie.id})" 
+                                            class="title-edit-btn text-[10px] px-1.5 py-0.5 rounded-full border border-dashed border-neutral-700 text-neutral-500 hover:text-neutral-300 hover:border-neutral-500 transition font-light flex items-center gap-0.5 flex-shrink-0">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
+                                        </svg>
+                                    </button>
+                                </div>
+                                <div class="flex flex-wrap items-center gap-1">
+                                    <span onclick="toggleMediaType(${movie.id})" class="inline-block cursor-pointer px-2.5 py-0.5 rounded text-[10px] font-medium border transition-all duration-200 hover:opacity-80 shadow-sm ${typeBadgeClass}">
+                                        ${typeLabel}
+                                    </span>
+                                    <button onclick="toggleStatus(${movie.id})" class="text-[10px] px-2 py-0.5 rounded border ${statusBadgeClass} transition cursor-pointer">${movie.watchStatus}</button>
+                                </div>
+
+                                <div class="mt-1"> 
+                                    ${(movie.mediaType === 'series') ? `
+                                    <span class="text-[10px] text-neutral-500 font-light flex items-center gap-0.5">
+                                        <span>S: 
+                                            <span id="seasons_display_${movie.id}" class="season-display text-neutral-300 font-mono">${movie.seasons || 99}</span>
+                                            <input type="number" id="seasons_input_${movie.id}" 
+                                                   value="${movie.seasons || 99}" 
+                                                   min="1" max="999"
+                                                   onchange="updateSeasonCount(${movie.id})"
+                                                   onclick="event.stopPropagation()"
+                                                   class="season-input w-10 bg-neutral-900 border border-neutral-700 rounded px-1 py-0 text-xs text-neutral-100 focus:outline-none focus:border-neutral-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none">
+                                        </span>
+                                        <span class="text-neutral-700">|</span>
+                                        <span>E: 
+                                            <span id="episodes_display_${movie.id}" class="episode-display text-neutral-300 font-mono">${movie.episodes || 99}</span>
+                                            <input type="number" id="episodes_input_${movie.id}" 
+                                                   value="${movie.episodes || 99}" 
+                                                   min="1" max="999"
+                                                   onchange="updateEpisodeCount(${movie.id})"
+                                                   onclick="event.stopPropagation()"
+                                                   class="episode-input w-10 bg-neutral-900 border border-neutral-700 rounded px-1 py-0 text-xs text-neutral-100 focus:outline-none focus:border-neutral-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none">
+                                        </span>
+                                        <span class="relative inline-flex items-center">
+                                            <button onclick="event.stopPropagation(); refreshSeasonsEpisodes(${movie.id})" 
+                                                    class="absolute left-0 top-1/2 -translate-y-1/2 ml-0.5 px-1 py-0.5 bg-neutral-800 hover:bg-neutral-700 rounded text-neutral-300 hover:text-white transition text-[9px] flex items-center gap-0.5 season-refresh-btn">
+                                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                                            </button>
+                                        </span>
+                                    </span>
+                                    ` : ''}
+                                </div>
+
+                                <hr class="mt-1.5 border-neutral-800">
+                            </div>
+                            <div class="flex flex-wrap gap-1 mb-1 items-center">
+                                ${genresHtml}
+                                <button onclick="event.stopPropagation(); editGenres(${movie.id})" 
+                                        class="genre-edit-btn text-[10px] px-2 py-0.5 rounded-full border border-dashed border-neutral-700 text-neutral-500 hover:text-neutral-300 hover:border-neutral-500 transition font-light items-center gap-1">
+                                    ✎ Edit
+                                </button>
+                            </div>
+                            ${customTags.length ? `<div class="flex flex-wrap gap-1 mb-2">${tagsHtml}</div>` : `<div class="text-[10px] text-neutral-600 italic mb-2"></div>`}
+                         
+                        </div>
+                        <div class="flex items-center gap-2 mt-1">
+                            <button onclick="editTags(${movie.id})" class="flex-1 bg-neutral-800/50 hover:bg-neutral-700 text-neutral-300 hover:text-white border border-neutral-700/50 text-xs py-1.5 rounded-lg transition font-light flex items-center justify-center gap-1">
+                                <span>✎</span> Edit Tags
+                            </button>
+                            <button onclick="removeMovie(${movie.id})" class="flex-1 bg-transparent hover:bg-neutral-900 text-neutral-500 hover:text-red-400 border border-neutral-800/80 text-xs py-1.5 rounded-lg transition font-light">Remove</button>
+                        </div>
+                    </div>
+                `;
+                const textarea = card.querySelector(`#commentInput_${movie.id}`);
+                if (textarea) textarea.value = commentText;
+            }
+            grid.appendChild(card);
+        });
+    }
+
+    // ----- TAG/HELPER FUNCTIONS -----
+    function toggleTagFromCard(tag) {
+        if (excludedTags.has(tag)) excludedTags.delete(tag);
+        if (selectedTags.has(tag)) selectedTags.delete(tag);
+        else selectedTags.add(tag);
+        currentPage = 1;
+        updateFilterUIs();
+        filterAndSortMovies();
+        showStatus(`Filter by tag: ${tag}`, "info");
+    }
+
+    function toggleGenreFromCard(genre) {
+        if (excludedGenres.has(genre)) excludedGenres.delete(genre);
+        if (selectedGenres.has(genre)) selectedGenres.delete(genre);
+        else selectedGenres.add(genre);
+        currentPage = 1;
+        updateFilterUIs();
+        filterAndSortMovies();
+        showStatus(`Filter by genre: ${genre}`, "info");
+    }
+
+    function handleSearchInput() { currentPage = 1; filterAndSortMovies(); }
+    function handleFilterChange() { currentPage = 1; filterAndSortMovies(); }
+    function changeItemsPerPage() {
+        if (reorderMode) return;
+        const val = document.getElementById('itemsPerPageSelect').value;
+        itemsPerPage = val === 'all' ? 'all' : parseInt(val);
+        currentPage = 1;
+        filterAndSortMovies();
+    }
+    function goToPage(page) { currentPage = page; filterAndSortMovies(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+    function toggleStatus(id) {
+        const movie = movies.find(m => m.id === id);
+        if (!movie) return;
+        movie.watchStatus = movie.watchStatus === 'Watched' ? 'Want to Watch' : 'Watched';
+        saveToLocalStorage();
+        filterAndSortMovies();
+        showStatus(`Marked "${movie.title}" as ${movie.watchStatus}.`, "info");
+    }
+    function toggleMediaType(id) {
+        const movie = movies.find(m => m.id === id);
+        if (!movie) return;
+        movie.mediaType = movie.mediaType === 'movie' ? 'series' : 'movie';
+        saveToLocalStorage();
+        filterAndSortMovies();
+        showStatus(`Changed "${movie.title}" to ${movie.mediaType}.`, "info");
+    }
+    function editRating(id) {
+        const movie = movies.find(m => m.id === id);
+        if (!movie) return;
+        const newRating = prompt(`Update rating for "${movie.title}" (0-10):`, movie.personalRating);
+        if (newRating === null) return;
+        const val = parseFloat(newRating);
+        if (isNaN(val) || val < 0 || val > 10) { showStatus("Enter number 0-10.", "error"); return; }
+        movie.personalRating = val;
+        saveToLocalStorage();
+        filterAndSortMovies();
+        showStatus(`Rating updated for "${movie.title}".`, "success");
+    }
+    function handleCommentInput(id) {
+        const movie = movies.find(m => m.id === id);
+        if (!movie) return;
+        const input = document.getElementById(`commentInput_${id}`);
+        const btn = document.getElementById(`saveCommentBtn_${id}`);
+        if (!input || !btn) return;
+        btn.classList.toggle('hidden', input.value.trim() === (movie.comment || '').trim());
+    }
+    function saveComment(id, e) {
+        e.stopPropagation();
+        const movie = movies.find(m => m.id === id);
+        if (!movie) return;
+        const input = document.getElementById(`commentInput_${id}`);
+        if (!input) return;
+        movie.comment = input.value.trim();
+        saveToLocalStorage();
+        document.getElementById(`saveCommentBtn_${id}`)?.classList.add('hidden');
+        showStatus(`Comment saved for "${movie.title}".`, "success");
+    }
+    function removeMovie(id) {
+        const movie = movies.find(m => m.id === id);
+        if (!movie) return;
+        if (confirm(`Remove "${movie.title}"?`)) {
+            movies = movies.filter(m => m.id !== id);
+            if (selectedItems.has(id)) selectedItems.delete(id);
+            bulkSelection.delete(id);
+            saveToLocalStorage();
+            updateFilterUIs();
+            filterAndSortMovies();
+            showStatus("Item removed.", "info");
+        }
+    }
+    function showStatus(msg, type) {
+        if (editMode) return;
+        const el = document.getElementById('statusMessage');
+        el.classList.remove('hidden','bg-red-950/40','text-red-300','border-red-900/50','bg-emerald-950/40','text-emerald-300','border-emerald-900/50','bg-neutral-900','text-neutral-300','border-neutral-800');
+        if (type === 'error') el.classList.add('bg-red-950/40','text-red-300','border','border-red-900/50');
+        else if (type === 'success') el.classList.add('bg-emerald-950/40','text-emerald-300','border','border-emerald-900/50');
+        else el.classList.add('bg-neutral-900','text-neutral-300','border','border-neutral-800');
+        el.textContent = msg;
+        setTimeout(() => { if (type !== 'error') el.classList.add('hidden'); }, 4000);
+    }
+    function resetFilters() {
+        const currentSort = document.getElementById('ratingSort').value;
+        document.getElementById('movieTitleInput').value = "";
+        document.getElementById('searchInput').value = '';
+        selectedGenres.clear(); excludedGenres.clear();
+        selectedTags.clear(); excludedTags.clear();
+        document.getElementById('statusFilter').value = 'all';
+        localStorage.removeItem('cinevault_status_pref');
+        document.getElementById('typeFilter').value = 'all';
+        document.getElementById('ratingRangeInput').value = '';
+        localStorage.removeItem('cinevault_rating_range_pref');
+        document.getElementById('yearRangeInput').value = '';
+        document.getElementById('ratingSort').value = 'none';
+        localStorage.removeItem('cinevault_sort_pref');
+        document.getElementById('ratingSort').value = currentSort;
+        localStorage.setItem('cinevault_sort_pref', currentSort);
+        if (reorderMode && currentSort !== 'latest') {
+            document.getElementById('ratingSort').value = 'none';
+            wasLatestMode = false;
+        } else if (reorderMode && currentSort === 'latest') {
+            wasLatestMode = true;
+        }
+        document.getElementById('itemsPerPageSelect').value = '12';
+        itemsPerPage = 12;
+        currentPage = 1;
+        clearBulkSelection();
+        updateFilterUIs();
+        filterAndSortMovies();
+        showStatus("Filters reset.", "info");
+    }
+    function exportData() {
+        const data = {
+            movies: movies,
+            tagColors: Array.from(tagColorMap.entries())
+        };
+        showProgress("Preparing JSON...", 10);
+        setTimeout(() => {
+            showProgress("Generating JSON...", 40);
+            const jsonData = JSON.stringify(data, null, 4);
+            const blob = new Blob([jsonData], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            setTimeout(() => {
+                showProgress("Creating download...", 70);
+                const a = document.createElement('a');
+                a.setAttribute("href", url);
+                a.setAttribute("download", "cinevault_data.json");
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    showProgress("Download complete!", 100);
+                    setTimeout(() => {
+                        hideProgress();
+                        showStatus("Exported JSON successfully!", "success");
+                    }, 500);
+                }, 300);
+            }, 150);
+        }, 150);
+    }
+    function importData(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(ev) {
+            try {
+                const imported = JSON.parse(ev.target.result);
+                if (Array.isArray(imported)) {
+                    movies = imported.map(m => ({ ...m, mediaType: m.mediaType || 'movie', comment: m.comment || '', customTags: Array.isArray(m.customTags) ? m.customTags : [], seasons: m.seasons || 99, episodes: m.episodes || 99, currentSeason: m.currentSeason || 1, currentEpisode: m.currentEpisode || 1 }));
+                } else if (imported.movies && Array.isArray(imported.movies)) {
+                    movies = imported.movies.map(m => ({ ...m, mediaType: m.mediaType || 'movie', comment: m.comment || '', customTags: Array.isArray(m.customTags) ? m.customTags : [], seasons: m.seasons || 99, episodes: m.episodes || 99, currentSeason: m.currentSeason || 1, currentEpisode: m.currentEpisode || 1 }));
+                    if (imported.tagColors) {
+                        tagColorMap = new Map(imported.tagColors);
+                        saveTagColors();
+                    }
+                } else {
+                    showStatus("Invalid JSON format.", "error");
+                    e.target.value = '';
+                    return;
+                }
+                saveToLocalStorage();
+                currentPage = 1;
+                selectedItems.clear();
+                selectMode = false;
+                bulkSelection.clear();
+                updateSelectedCount();
+                updateFilterUIs();
+                filterAndSortMovies();
+                showStatus("Imported successfully.", "success");
+            } catch (err) { 
+                showStatus("Failed to parse JSON.", "error"); 
+                console.error(err);
+            }
+            e.target.value = '';
+        };
+        reader.readAsText(file);
+    }
+    function renderPagination(total) {
+        const container = document.getElementById('paginationButtons');
+        container.innerHTML = '';
+        document.getElementById('paginationContainer').style.display = 'flex';
+        if (itemsPerPage === 'all' || reorderMode) { 
+            container.innerHTML = `<span class="text-xs text-neutral-500">Showing all ${total} items</span>`; 
+            return; 
+        }
+        const totalPages = Math.ceil(total / itemsPerPage);
+        if (totalPages <= 1) { document.getElementById('paginationContainer').style.display = 'none'; return; }
+        const prev = document.createElement('button');
+        prev.textContent = 'Prev';
+        prev.className = `px-3 py-1.5 rounded-lg text-xs font-light border transition ${currentPage===1?'bg-neutral-950 text-neutral-600 border-neutral-900 cursor-not-allowed':'bg-neutral-900 text-neutral-300 border-neutral-800 hover:bg-neutral-800'}`;
+        prev.disabled = currentPage===1;
+        prev.onclick = () => { if (currentPage > 1) goToPage(currentPage-1); };
+        container.appendChild(prev);
+        for (let i=1; i<=totalPages; i++) {
+            if (i===1 || i===totalPages || (i>=currentPage-1 && i<=currentPage+1)) {
+                const btn = document.createElement('button');
+                btn.textContent = i;
+                btn.className = `px-3 py-1.5 rounded-lg text-xs transition border ${i===currentPage?'bg-neutral-100 text-neutral-950 border-neutral-100 font-medium':'bg-neutral-900 text-neutral-400 border-neutral-800 hover:border-neutral-700 hover:text-neutral-200'}`;
+                btn.onclick = () => goToPage(i);
+                container.appendChild(btn);
+            } else if (i===currentPage-2 || i===currentPage+2) {
+                const ellipsis = document.createElement('span');
+                ellipsis.textContent = '...';
+                ellipsis.className = 'px-2 text-xs text-neutral-600';
+                container.appendChild(ellipsis);
+            }
+        }
+        const next = document.createElement('button');
+        next.textContent = 'Next';
+        next.className = `px-3 py-1.5 rounded-lg text-xs font-light border transition ${currentPage===totalPages?'bg-neutral-950 text-neutral-600 border-neutral-900 cursor-not-allowed':'bg-neutral-900 text-neutral-300 border-neutral-800 hover:bg-neutral-800'}`;
+        next.disabled = currentPage===totalPages;
+        next.onclick = () => { if (currentPage < totalPages) goToPage(currentPage+1); };
+        container.appendChild(next);
+    }
+
+     // ----- PDF (same as before, includes tags) -----
+    async function printPDF() {
+        
+        if (currentFilteredMovies.length === 0) { showStatus("No items to print.", "error"); return; }
+        const BATCH_SIZE = 12;
+        const moviesBatch = [...currentFilteredMovies];
+        const totalBatches = Math.ceil(moviesBatch.length / BATCH_SIZE);
+        if (totalBatches === 1) { await generateSinglePDF(moviesBatch); return; }
+        showProgress("Generating PDF...", 0);
+        const pdfGrid = document.getElementById('pdfGrid');
+        const element = document.getElementById('pdfExportContainer');
+        const itemsPerPDFPage = 12;
+        const pdfBlobs = [];
+        const totalItems = moviesBatch.length;
+        const totalPages = Math.ceil(totalItems / itemsPerPDFPage);
+        const genreTags = getActiveGenresOrTags();
+        for (let batchIdx=0; batchIdx<totalBatches; batchIdx++) {
+            const batchMovies = moviesBatch.slice(batchIdx*BATCH_SIZE, (batchIdx+1)*BATCH_SIZE);
+            pdfGrid.innerHTML = '';
+            const totalBatchPages = Math.ceil(batchMovies.length / itemsPerPDFPage);
+            const globalPageOffset = batchIdx * Math.ceil(BATCH_SIZE / itemsPerPDFPage);
+            for (let pageIdx=0; pageIdx<totalBatchPages; pageIdx++) {
+                const startIdx = pageIdx*itemsPerPDFPage;
+                const pageChunk = batchMovies.slice(startIdx, startIdx+itemsPerPDFPage);
+                const pageNumber = globalPageOffset + pageIdx + 1;
+                const page = document.createElement('div');
+                page.style.cssText = `width:794px;height:1123px;box-sizing:border-box;padding:40px 48px;margin:0;background:#0b0b0d;color:#f5f5f5;overflow:hidden;position:relative;display:flex;flex-direction:column;justify-content:center;align-items:center;`;
+                let genreDisplay = genreTags.length ? genreTags.map(t => `<span style="display:inline-block;background:#1a1a1a;color:#a1a1aa;border:1px solid #3a3a3a;border-radius:999px;padding:2px 12px;font-size:10px;line-height:1.4;font-weight:300;letter-spacing:.03em;white-space:nowrap;margin:0 2px;">${t}</span>`).join('') : `<span style="display:inline-block;background:#1a1a1a;color:#71717a;border:1px solid #3a3a3a;border-radius:999px;padding:2px 12px;font-size:10px;">All</span>`;
+                let headerHtml = `<div style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:0 4px 20px 4px;flex-shrink:0;"><span style="font-size:11px;color:#71717a;font-weight:300;letter-spacing:.05em;">PAGE ${pageNumber} / ${totalPages}</span><div style="display:flex;align-items:center;gap:12px;flex-shrink:0;"><div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;justify-content:flex-end;">${genreDisplay}</div><span style="font-size:11px;color:#71717a;font-weight:300;">${totalItems} items</span></div></div>`;
+                let pageHtml = `${headerHtml}<div style="display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(3,312px);gap:14px 16px;width:698px;height:960px;box-sizing:border-box;align-content:start;justify-content:center;flex-shrink:0;">`;
+                for (let j=0; j<12; j++) {
+                    if (j>=pageChunk.length) { pageHtml += '<div></div>'; continue; }
+                    const movie = pageChunk[j];
+                    const isWatched = movie.watchStatus === 'Watched';
+                    const isSeries = (movie.mediaType || 'movie') === 'series';
+                    const statusBg = isWatched ? '#06231c' : '#18181c';
+                    const statusText = isWatched ? '#5eead4' : '#a1a1aa';
+                    const statusBorder = isWatched ? '#115e59' : '#27272a';
+                    const typeBg = isSeries ? '#3b2207' : '#18181c';
+                    const typeText = isSeries ? '#fcd34d' : '#d4d4d8';
+                    const typeBorder = isSeries ? '#78350f' : '#27272a';
+                    const typeLabel = isSeries ? 'TV SERIES' : 'MOVIE';
+                    const safeGenres = Array.isArray(movie.genres) ? movie.genres : ['Unknown'];
+                    const genresHtml = safeGenres.map(g => `<span style="display:inline-block;background:#18181b;color:#a1a1aa;border:1px solid #27272a;border-radius:999px;padding:2px 6px;margin:0 2px 2px 0;font-size:6.5px;line-height:1;font-weight:300;">${g}</span>`).join('');
+                    const tagsHtml = Array.isArray(movie.customTags) ? movie.customTags.map(t => `<span style="display:inline-block;background:#0b2a3a;color:#7dd3fc;border:1px solid #0e4a6a;border-radius:999px;padding:2px 6px;margin:0 2px 2px 0;font-size:6px;line-height:1;font-weight:300;">#${t}</span>`).join('') : '';
+                    pageHtml += `<div style="width:100%;height:312px;background:#111115;border:1px solid #232328;border-radius:10px;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;box-shadow:0 4px 6px -1px rgba(0,0,0,0.2);">
+                        <div style="position:relative;width:100%;height:240px;background:#09090b;overflow:hidden;flex-shrink:0;">
+                            <img src="${movie.poster}" crossorigin="anonymous" alt="" style="width:100%;height:100%;object-fit:cover;display:block;">
+
+
+                         <div style="position:absolute;bottom:8px;right:8px;background:rgba(11,11,14,0.8);backdrop-filter:blur(8px);padding:2px 8px;border-radius:9999px;font-size:7px;line-height:1;font-weight:500;color:#e4e4e7;border:1px solid #27272a;cursor:default;box-shadow:0 1px 3px rgba(0,0,0,0.2);">
+                                ${movie.year}
+                            </div>
+                                                        
+                            <div style="position:absolute;top:8px;right:8px;background:rgba(9,9,11,0.85);backdrop-filter:blur(4px);color:#f4f4f5;border:1px solid #27272a;border-radius:999px;padding:3px 8px;font-size:7px;line-height:1;font-weight:500;">⭐ <strong style="color:#fff;">${movie.personalRating}</strong><span style="color:#a1a1aa;">/10</span></div>
+                        </div>
+                        <div style="padding:8px 10px;box-sizing:border-box;flex:1;display:flex;flex-direction:column;justify-content:space-between;">
+                            <div>
+                                <div style="font-size:10.5px;line-height:1.2;color:#e4e4e7;font-weight:500;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px;">${movie.title}</div>
+                                <div style="display:flex;align-items:center;justify-content:space-between;gap:4px;margin-bottom:4px;">
+                                    <span style="font-size:7.5px;color:#71717a;font-weight:300;">IMDb: ${movie.imdbRating}/10</span>
+                                </div>
+                            </div>
+                            <div style="line-height:1;max-height:18px;overflow:hidden;">${genresHtml} ${tagsHtml}</div>
+                        </div>
+                    </div>`;
+                }
+                pageHtml += `</div>`;
+                page.innerHTML = pageHtml;
+                pdfGrid.appendChild(page);
+            }
+            element.style.display = 'block';
+            const opt = { margin:0, filename:'cinevault_collection.pdf', image:{type:'jpeg',quality:1}, html2canvas:{scale:2,useCORS:true,allowTaint:false,backgroundColor:'#0b0b0d',logging:false,letterRendering:true,scrollX:0,scrollY:0}, jsPDF:{unit:'mm',format:'a4',orientation:'portrait',compress:true} };
+            try {
+                const pdfObject = await html2pdf().from(element).set(opt).toPdf().get('pdf');
+                const totalPagesInPdf = pdfObject.internal.getNumberOfPages();
+                if (totalPagesInPdf > totalBatchPages) pdfObject.deletePage(totalPagesInPdf);
+                const blob = pdfObject.output('blob');
+                pdfBlobs.push(blob);
+                const progress = Math.round(((batchIdx + 1) / totalBatches) * 100);
+                showProgress("Generating PDF...", progress);
+            } catch (err) { 
+                element.style.display = 'none'; 
+                hideProgress();
+                showStatus("PDF error. Check CORS.", "error"); 
+                console.error(err); 
+                return; 
+            }
+            element.style.display = 'none';
+        }
+        try {
+            showProgress("Merging PDF pages...", 90);
+            const { PDFDocument } = PDFLib;
+            const mergedPdf = await PDFDocument.create();
+            for (const blob of pdfBlobs) {
+                const arrayBuffer = await blob.arrayBuffer();
+                const pdfDoc = await PDFDocument.load(arrayBuffer);
+                const pages = await mergedPdf.copyPages(pdfDoc, pdfDoc.getPageIndices());
+                pages.forEach(p => mergedPdf.addPage(p));
+            }
+            const mergedBytes = await mergedPdf.save();
+            const downloadBlob = new Blob([mergedBytes], { type: 'application/pdf' });
+            
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(downloadBlob);
+            link.download = 'cinevault_collection.pdf';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
+
+            showProgress("PDF exported successfully!", 100);
+            setTimeout(() => {
+                hideProgress();
+                showStatus("PDF exported successfully!", "success");
+            }, 500);
+        } catch (err) { 
+            hideProgress();
+            showStatus("Merge failed.", "error"); 
+            console.error(err); 
+        }
+    }
+
+    async function generateSinglePDF(moviesArray) {
+        showProgress("Generating PDF...", 0);
+        const pdfGrid = document.getElementById('pdfGrid');
+        const element = document.getElementById('pdfExportContainer');
+        pdfGrid.innerHTML = '';
+        const itemsPerPDFPage = 12;
+        const totalPages = Math.ceil(moviesArray.length / itemsPerPDFPage);
+        const totalItems = moviesArray.length;
+        const genreTags = getActiveGenresOrTags();
+        for (let pageIdx=0; pageIdx<totalPages; pageIdx++) {
+            const startIdx = pageIdx*itemsPerPDFPage;
+            const pageChunk = moviesArray.slice(startIdx, startIdx+itemsPerPDFPage);
+            const pageNumber = pageIdx+1;
+            const page = document.createElement('div');
+            page.style.cssText = `width:794px;height:1123px;box-sizing:border-box;padding:40px 48px;margin:0;background:#0b0b0d;color:#f5f5f5;overflow:hidden;position:relative;display:flex;flex-direction:column;justify-content:center;align-items:center;`;
+            let genreDisplay = genreTags.length ? genreTags.map(t => `<span style="display:inline-block;background:#1a1a1a;color:#a1a1aa;border:1px solid #3a3a3a;border-radius:999px;padding:2px 12px;font-size:10px;line-height:1.4;font-weight:300;letter-spacing:.03em;white-space:nowrap;margin:0 2px;">${t}</span>`).join('') : `<span style="display:inline-block;background:#1a1a1a;color:#71717a;border:1px solid #3a3a3a;border-radius:999px;padding:2px 12px;font-size:10px;">All</span>`;
+            let headerHtml = `<div style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:0 4px 20px 4px;flex-shrink:0;"><span style="font-size:11px;color:#71717a;font-weight:300;letter-spacing:.05em;">PAGE ${pageNumber} / ${totalPages}</span><div style="display:flex;align-items:center;gap:12px;flex-shrink:0;"><div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;justify-content:flex-end;">${genreDisplay}</div><span style="font-size:11px;color:#71717a;font-weight:300;">${totalItems} items</span></div></div>`;
+            let pageHtml = `${headerHtml}<div style="display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(3,312px);gap:14px 16px;width:698px;height:960px;box-sizing:border-box;align-content:start;justify-content:center;flex-shrink:0;">`;
+            for (let j=0; j<12; j++) {
+                if (j>=pageChunk.length) { pageHtml += '<div></div>'; continue; }
+                const movie = pageChunk[j];
+                const isWatched = movie.watchStatus === 'Watched';
+                const isSeries = (movie.mediaType || 'movie') === 'series';
+                const statusBg = isWatched ? '#06231c' : '#18181c';
+                const statusText = isWatched ? '#5eead4' : '#a1a1aa';
+                const statusBorder = isWatched ? '#115e59' : '#27272a';
+                const typeBg = isSeries ? '#3b2207' : '#18181c';
+                const typeText = isSeries ? '#fcd34d' : '#d4d4d8';
+                const typeBorder = isSeries ? '#78350f' : '#27272a';
+                const typeLabel = isSeries ? 'TV SERIES' : 'MOVIE';
+                const safeGenres = Array.isArray(movie.genres) ? movie.genres : ['Unknown'];
+                const genresHtml = safeGenres.map(g => `<span style="display:inline-block;background:#18181b;color:#a1a1aa;border:1px solid #27272a;border-radius:999px;padding:2px 6px;margin:0 2px 2px 0;font-size:6.5px;line-height:1;font-weight:300;">${g}</span>`).join('');
+                const tagsHtml = Array.isArray(movie.customTags) ? movie.customTags.map(t => `<span style="display:inline-block;background:#0b2a3a;color:#7dd3fc;border:1px solid #0e4a6a;border-radius:999px;padding:2px 6px;margin:0 2px 2px 0;font-size:6px;line-height:1;font-weight:300;">#${t}</span>`).join('') : '';
+                pageHtml += `<div style="width:100%;height:312px;background:#111115;border:1px solid #232328;border-radius:10px;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;box-shadow:0 4px 6px -1px rgba(0,0,0,0.2);">
+                    <div style="position:relative;width:100%;height:240px;background:#09090b;overflow:hidden;flex-shrink:0;">
+                        <img src="${movie.poster}" crossorigin="anonymous" alt="" style="width:100%;height:100%;object-fit:cover;display:block;">
+
+                    
+<div style="position:absolute;bottom:8px;right:8px;background:rgba(11,11,14,0.8);backdrop-filter:blur(8px);padding:2px 8px;border-radius:9999px;font-size:7px;line-height:1;font-weight:500;color:#e4e4e7;border:1px solid #27272a;cursor:default;box-shadow:0 1px 3px rgba(0,0,0,0.2);">
+    ${movie.year}
+</div>
+                        <div style="position:absolute;top:8px;right:8px;background:rgba(9,9,11,0.85);backdrop-filter:blur(4px);color:#f4f4f5;border:1px solid #27272a;border-radius:999px;padding:3px 8px;font-size:7px;line-height:1;font-weight:500;">⭐ <strong style="color:#fff;">${movie.personalRating}</strong><span style="color:#a1a1aa;">/10</span></div>
+                    </div>
+                    <div style="padding:8px 10px;box-sizing:border-box;flex:1;display:flex;flex-direction:column;justify-content:space-between;">
+                        <div>
+                            <div style="font-size:10.5px;line-height:1.2;color:#e4e4e7;font-weight:500;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px;">${movie.title}</div>
+                            <div style="display:flex;align-items:center;justify-content:space-between;gap:4px;margin-bottom:4px;">
+                                <span style="font-size:7.5px;color:#71717a;font-weight:300;">IMDb: ${movie.imdbRating}/10</span>
+
+                              
+                            </div>
+                        </div>
+                        <div style="line-height:1;max-height:18px;overflow:hidden;">${genresHtml} ${tagsHtml}</div>
+                    </div>
+                </div>`;
+            }
+            pageHtml += `</div>`;
+            page.innerHTML = pageHtml;
+            pdfGrid.appendChild(page);
+            const progress = Math.round(((pageIdx + 1) / totalPages) * 100);
+            showProgress("Generating PDF...", progress);
+        }
+        element.style.display = 'block';
+        const opt = { margin:0, filename:'cinevault_collection.pdf', image:{type:'jpeg',quality:1}, html2canvas:{scale:2,useCORS:true,allowTaint:false,backgroundColor:'#0b0b0d',logging:false,letterRendering:true,scrollX:0,scrollY:0}, jsPDF:{unit:'mm',format:'a4',orientation:'portrait',compress:true} };
+        try {
+            showProgress("Generating PDF...", 90);
+            const pdfObject = await html2pdf().from(element).set(opt).toPdf().get('pdf');
+            const totalPagesInPdf = pdfObject.internal.getNumberOfPages();
+            if (totalPagesInPdf > totalPages) pdfObject.deletePage(totalPagesInPdf);
+            await pdfObject.save('cinevault_collection.pdf');
+            element.style.display = 'none';
+            showProgress("PDF exported!", 100);
+            setTimeout(() => {
+                hideProgress();
+                showStatus("PDF exported!", "success");
+            }, 500);
+        } catch (err) { 
+            element.style.display = 'none'; 
+            hideProgress();
+            showStatus("PDF error.", "error"); 
+            console.error(err); 
+        }
+    }
+
+    function getActiveGenresOrTags() {
+        const result = [];
+        if (selectedGenres.size) result.push(...Array.from(selectedGenres));
+        else if (excludedGenres.size) result.push(...Array.from(excludedGenres).map(g => `not ${g}`));
+        if (selectedTags.size) result.push(...Array.from(selectedTags).map(t => `#${t}`));
+        else if (excludedTags.size) result.push(...Array.from(excludedTags).map(t => `not #${t}`));
+        if (!result.length) result.push('All');
+        return result.slice(0, 6);
+    }
+</script>
+</body>
+</html>
