@@ -48,17 +48,19 @@
         .poster-edit-btn { display: none !important; }
         .edit-mode .title-edit-btn { display: inline-flex !important; }
         .title-edit-btn { display: none !important; }
+        .edit-mode .year-edit-btn { display: inline-flex !important; }
+        .year-edit-btn { display: none !important; }
         .edit-mode #statusMessage { display: none !important; }
-        /* Season refresh button - only visible in edit mode */
         .season-refresh-btn { display: none !important; }
         .edit-mode .season-refresh-btn { display: inline-flex !important; }
-        /* Season/Episode edit inputs - only visible in edit mode */
         .season-input, .episode-input { display: none !important; }
         .edit-mode .season-input, .edit-mode .episode-input { display: inline-block !important; }
         .edit-mode .season-display, .edit-mode .episode-display { display: none !important; }
-       
+        /* Hide notes hover in edit mode */
+        .edit-mode .card-poster .absolute.inset-x-0.bottom-0.h-1\/2 {
+            display: none !important;
+        }
         
-
         .reorder-mode .movie-card {
             cursor: grab;
             transition: box-shadow 0.15s, transform 0.1s;
@@ -101,6 +103,7 @@
         .reorder-mode .movie-card .genre-edit-btn,
         .reorder-mode .movie-card .poster-edit-btn,
         .reorder-mode .movie-card .title-edit-btn,
+        .reorder-mode .movie-card .year-edit-btn,
         .reorder-mode .movie-card .edit-tags-btn,
         .reorder-mode .movie-card .remove-btn,
         .reorder-mode .movie-card .status-badge,
@@ -181,7 +184,6 @@
         .reorder-mode .movie-card.bulk-selected .bulk-check {
             display: block;
         }
-        /* progress dropdowns */
         .progress-select {
             background: #1a1a1e;
             border: 1px solid #3a3a3e;
@@ -203,7 +205,6 @@
             background: #1a1a1e;
             color: #d4d4d8;
         }
-        
     </style>
 </head>
 <body class="bg-neutral-950 text-neutral-100 min-h-screen font-sans antialiased selection:bg-neutral-800 selection:text-white">
@@ -240,6 +241,7 @@
                     <select id="watchStatusInput" onchange="saveSharedWatchStatus('omdb')" class="bg-neutral-900 border border-neutral-800 rounded-lg text-sm text-neutral-200 focus:outline-none focus:border-neutral-500 transition w-full">
                         <option value="Want to Watch">Want to Watch</option>
                         <option value="Watched">Watched</option>
+                        <option value="Not Finished">Not Finished</option>
                     </select>
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 mt-3">
@@ -265,6 +267,7 @@
                     <select id="manualWatchStatus" onchange="saveSharedWatchStatus('manual')" class="bg-neutral-900 border border-neutral-800 rounded-lg text-sm text-neutral-200 focus:outline-none focus:border-neutral-500 transition w-full">
                         <option value="Want to Watch">Want to Watch</option>
                         <option value="Watched">Watched</option>
+                        <option value="Not Finished">Not Finished</option>
                     </select>
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 mt-3">
@@ -295,6 +298,7 @@
                 <option value="all">All Statuses</option>
                 <option value="Want to Watch">Want to Watch</option>
                 <option value="Watched">Watched</option>
+                <option value="Not Finished">Not Finished</option>
             </select>
         </div>
         <div>
@@ -335,6 +339,7 @@
                     <option value="">Change Status...</option>
                     <option value="Watched">Mark as Watched</option>
                     <option value="Want to Watch">Mark as Want to Watch</option>
+                    <option value="Not Finished">Mark as Not Finished</option>
                 </select>
                 <button onclick="bulkStatusUpdate()" class="bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 font-medium px-4 py-2.5 rounded-lg text-sm transition">Apply Status</button>
                 <button onclick="bulkAddTags()" class="bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 font-medium px-4 py-2.5 rounded-lg text-sm transition">+ Tags</button>
@@ -446,20 +451,56 @@
     let selectedItems = new Set();
     let selectMode = false;
 
-    // ----- ESC KEY HANDLER - clears both selection modes silently -----
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') {
-            if (reorderMode) {
-                clearBulkSelection();
-            }
-            if (selectMode) {
-                selectedItems.clear();
-                selectMode = false;
-                updateSelectedCount();
-                filterAndSortMovies();
-            }
+// ----- ESC KEY HANDLER - clears both selection modes silently -----
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        // Close any open modals/prompts first
+        const modal = document.querySelector('.fixed.inset-0');
+        if (modal) {
+            modal.remove();
+            return;
         }
-    });
+        
+        // Clear search input
+        const searchInput = document.getElementById('searchInput');
+        if (document.activeElement === searchInput && searchInput.value) {
+            searchInput.value = '';
+            handleSearchInput();
+            return;
+        }
+        
+        // Clear ALL selections - both bulk and select mode
+        let needsRefresh = false;
+        
+        // Clear bulk selection (reorder mode)
+        if (reorderMode) {
+            bulkSelection.clear();
+            document.querySelectorAll('.movie-card').forEach(card => {
+                card.classList.remove('bulk-selected');
+            });
+            needsRefresh = true;
+        }
+        
+        // Clear select mode selection (blue highlighted cards)
+        if (selectMode || selectedItems.size > 0) {
+            selectedItems.clear();
+            selectMode = false;
+            updateSelectedCount();
+            needsRefresh = true;
+        }
+        
+        // If there were any selections, refresh the display
+        if (needsRefresh) {
+            filterAndSortMovies();
+            return;
+        }
+        
+        // Exit edit mode if active
+        if (editMode) {
+            toggleEditMode();
+        }
+    }
+});
 
     // ----- TAG COLORS -----
     const tagColors = [
@@ -842,6 +883,17 @@
         filterAndSortMovies();
     }
 
+    function editYear(id) {
+        if (!editMode) return;
+        const movie = movies.find(m => m.id === id);
+        if (!movie) return;
+        const newYear = prompt(`Edit year for "${movie.title}":`, movie.year);
+        if (newYear === null || newYear.trim() === "") return;
+        movie.year = newYear.trim();
+        saveToLocalStorage();
+        filterAndSortMovies();
+    }
+
     function toggleEditMode() {
         editMode = !editMode;
         if (editMode) {
@@ -1093,7 +1145,35 @@
             const genres = data.Genre && data.Genre !== "N/A" ? data.Genre.split(", ").map(g => g.trim()) : ["Unknown"];
             const imdbRating = data.imdbRating && data.imdbRating !== "N/A" ? parseFloat(data.imdbRating) : 0;
             const customTags = tagsRaw ? tagsRaw.split(',').map(t => t.trim()).filter(t => t.length > 0) : [];
-            const totalSeasons = resolvedType === 'series' ? (parseInt(data.totalSeasons) || 99) : 99;
+            
+            // Get seasons and episodes for TV series
+            let totalSeasons = 99;
+            let totalEpisodes = 99;
+            
+            if (resolvedType === 'series') {
+                if (data.totalSeasons && data.totalSeasons !== "N/A") {
+                    totalSeasons = parseInt(data.totalSeasons) || 99;
+                    
+                    // Try to fetch episodes for the first few seasons
+                    if (totalSeasons > 0 && totalSeasons < 30 && data.imdbID) {
+                        let episodeCount = 0;
+                        const maxSeasonsToFetch = Math.min(totalSeasons, 3);
+                        for (let s = 1; s <= maxSeasonsToFetch; s++) {
+                            const seasonUrl = `https://www.omdbapi.com/?i=${data.imdbID}&Season=${s}&apikey=${apiKey}`;
+                            const seasonResp = await fetch(seasonUrl);
+                            const seasonData = await seasonResp.json();
+                            if (seasonData.Response === "True" && seasonData.Episodes) {
+                                episodeCount += seasonData.Episodes.length;
+                            }
+                        }
+                        if (episodeCount > 0 && maxSeasonsToFetch > 0) {
+                            const avgEpisodesPerSeason = episodeCount / maxSeasonsToFetch;
+                            totalEpisodes = Math.round(avgEpisodesPerSeason * totalSeasons);
+                        }
+                    }
+                }
+            }
+            
             const newItem = {
                 id: Date.now(),
                 title: data.Title,
@@ -1107,7 +1187,7 @@
                 comment: initialComment,
                 customTags: customTags,
                 seasons: totalSeasons,
-                episodes: 99,
+                episodes: totalEpisodes,
                 currentSeason: 1,
                 currentEpisode: 1
             };
@@ -1524,6 +1604,10 @@ function filterAndSortMovies() {
         el.textContent = `${label}: ${avg}/10`;
     }
 
+    // Add at the top of your script
+let renderedCardIds = new Set();
+let renderCache = {};
+
     // ----- RENDER -----
     function renderMovies(moviesToRender, totalFilteredCount) {
         const grid = document.getElementById('movieGrid');
@@ -1679,7 +1763,14 @@ function filterAndSortMovies() {
                 }
             };
             
-            const statusBadgeClass = movie.watchStatus === 'Watched' ? 'bg-emerald-950/60 text-emerald-300 border-emerald-900/50' : 'bg-neutral-800/60 text-neutral-400 border-neutral-700/50';
+            // Updated status badge colors for 3 states - RED for Not Finished
+            let statusBadgeClass = 'bg-neutral-800/60 text-neutral-400 border-neutral-700/50';
+            if (movie.watchStatus === 'Watched') {
+                statusBadgeClass = 'bg-emerald-950/60 text-emerald-300 border-emerald-900/50';
+            } else if (movie.watchStatus === 'Not Finished') {
+                statusBadgeClass = 'bg-red-950/60 text-red-300 border-red-900/50';
+            }
+            
             const itemType = movie.mediaType || 'movie';
             const typeLabel = itemType === 'series' ? 'TV Series' : 'Movie';
             const typeBadgeClass = itemType === 'series' ? 'bg-amber-950/80 text-amber-300 border-amber-800/80' : 'bg-neutral-950/80 text-neutral-300 border-neutral-800';
@@ -1726,9 +1817,15 @@ function filterAndSortMovies() {
                             </svg>
                         </button>
 
-                        <div class="absolute bottom-3 right-3 bg-neutral-950/80 backdrop-blur-md px-3 py-1 rounded-full text-xs font-medium text-neutral-200 border border-neutral-800 hover:border-neutral-500 transition shadow-sm cursor-default">
-                            ${movie.year}
-                        </div>
+                       <div class="absolute bottom-3 right-3 bg-neutral-950/80 backdrop-blur-md px-3 py-1 rounded-full text-xs font-medium text-neutral-200 border border-neutral-800 hover:border-neutral-500 transition shadow-sm flex items-center gap-1.5 cursor-default">
+    <span>${movie.year}</span>
+    <button onclick="event.stopPropagation(); editYear(${movie.id})" 
+            class="year-edit-btn text-neutral-500 hover:text-neutral-200 transition">
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
+        </svg>
+    </button>
+</div>
 
                         <div onclick="editRating(${movie.id})" class="absolute top-3 right-3 bg-neutral-950/80 backdrop-blur-md px-3 py-1 rounded-full text-xs font-medium text-neutral-200 border border-neutral-800 hover:border-neutral-500 cursor-pointer transition flex items-center gap-1 shadow-sm"><span>⭐</span><span><strong class="text-white">${movie.personalRating}</strong>/10</span></div>
                         
@@ -1852,14 +1949,23 @@ function filterAndSortMovies() {
         filterAndSortMovies();
     }
     function goToPage(page) { currentPage = page; filterAndSortMovies(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+    
     function toggleStatus(id) {
         const movie = movies.find(m => m.id === id);
         if (!movie) return;
-        movie.watchStatus = movie.watchStatus === 'Watched' ? 'Want to Watch' : 'Watched';
+        // Cycle through: Want to Watch -> Watched -> Not Finished -> Want to Watch
+        if (movie.watchStatus === 'Watched') {
+            movie.watchStatus = 'Not Finished';
+        } else if (movie.watchStatus === 'Not Finished') {
+            movie.watchStatus = 'Want to Watch';
+        } else {
+            movie.watchStatus = 'Watched';
+        }
         saveToLocalStorage();
         filterAndSortMovies();
         showStatus(`Marked "${movie.title}" as ${movie.watchStatus}.`, "info");
     }
+    
     function toggleMediaType(id) {
         const movie = movies.find(m => m.id === id);
         if (!movie) return;
@@ -1868,6 +1974,7 @@ function filterAndSortMovies() {
         filterAndSortMovies();
         showStatus(`Changed "${movie.title}" to ${movie.mediaType}.`, "info");
     }
+    
     function editRating(id) {
         const movie = movies.find(m => m.id === id);
         if (!movie) return;
@@ -1880,6 +1987,7 @@ function filterAndSortMovies() {
         filterAndSortMovies();
         showStatus(`Rating updated for "${movie.title}".`, "success");
     }
+    
     function handleCommentInput(id) {
         const movie = movies.find(m => m.id === id);
         if (!movie) return;
@@ -1888,6 +1996,7 @@ function filterAndSortMovies() {
         if (!input || !btn) return;
         btn.classList.toggle('hidden', input.value.trim() === (movie.comment || '').trim());
     }
+    
     function saveComment(id, e) {
         e.stopPropagation();
         const movie = movies.find(m => m.id === id);
@@ -1899,6 +2008,7 @@ function filterAndSortMovies() {
         document.getElementById(`saveCommentBtn_${id}`)?.classList.add('hidden');
         showStatus(`Comment saved for "${movie.title}".`, "success");
     }
+    
     function removeMovie(id) {
         const movie = movies.find(m => m.id === id);
         if (!movie) return;
@@ -1912,6 +2022,7 @@ function filterAndSortMovies() {
             showStatus("Item removed.", "info");
         }
     }
+    
     function showStatus(msg, type) {
         if (editMode) return;
         const el = document.getElementById('statusMessage');
@@ -1922,6 +2033,7 @@ function filterAndSortMovies() {
         el.textContent = msg;
         setTimeout(() => { if (type !== 'error') el.classList.add('hidden'); }, 4000);
     }
+    
     function resetFilters() {
         const currentSort = document.getElementById('ratingSort').value;
         document.getElementById('movieTitleInput').value = "";
@@ -1952,6 +2064,7 @@ function filterAndSortMovies() {
         filterAndSortMovies();
         showStatus("Filters reset.", "info");
     }
+    
     function exportData() {
         const data = {
             movies: movies,
@@ -1982,6 +2095,7 @@ function filterAndSortMovies() {
             }, 150);
         }, 150);
     }
+    
     function importData(e) {
         const file = e.target.files[0];
         if (!file) return;
@@ -2019,6 +2133,7 @@ function filterAndSortMovies() {
         };
         reader.readAsText(file);
     }
+    
     function renderPagination(total) {
         const container = document.getElementById('paginationButtons');
         container.innerHTML = '';
@@ -2057,7 +2172,7 @@ function filterAndSortMovies() {
         container.appendChild(next);
     }
 
-     // ----- PDF (same as before, includes tags) -----
+    // ----- PDF (same as before, includes tags) -----
     async function printPDF() {
         
         if (currentFilteredMovies.length === 0) { showStatus("No items to print.", "error"); return; }
@@ -2091,10 +2206,20 @@ function filterAndSortMovies() {
                     if (j>=pageChunk.length) { pageHtml += '<div></div>'; continue; }
                     const movie = pageChunk[j];
                     const isWatched = movie.watchStatus === 'Watched';
+                    const isNotFinished = movie.watchStatus === 'Not Finished';
+                    let statusBg = '#18181c';
+                    let statusText = '#a1a1aa';
+                    let statusBorder = '#27272a';
+                    if (isWatched) {
+                        statusBg = '#06231c';
+                        statusText = '#5eead4';
+                        statusBorder = '#115e59';
+                    } else if (isNotFinished) {
+                        statusBg = '#2a0a0a';
+                        statusText = '#ef4444';
+                        statusBorder = '#7f1d1d';
+                    }
                     const isSeries = (movie.mediaType || 'movie') === 'series';
-                    const statusBg = isWatched ? '#06231c' : '#18181c';
-                    const statusText = isWatched ? '#5eead4' : '#a1a1aa';
-                    const statusBorder = isWatched ? '#115e59' : '#27272a';
                     const typeBg = isSeries ? '#3b2207' : '#18181c';
                     const typeText = isSeries ? '#fcd34d' : '#d4d4d8';
                     const typeBorder = isSeries ? '#78350f' : '#27272a';
@@ -2105,12 +2230,9 @@ function filterAndSortMovies() {
                     pageHtml += `<div style="width:100%;height:312px;background:#111115;border:1px solid #232328;border-radius:10px;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;box-shadow:0 4px 6px -1px rgba(0,0,0,0.2);">
                         <div style="position:relative;width:100%;height:240px;background:#09090b;overflow:hidden;flex-shrink:0;">
                             <img src="${movie.poster}" crossorigin="anonymous" alt="" style="width:100%;height:100%;object-fit:cover;display:block;">
-
-
-                         <div style="position:absolute;bottom:8px;right:8px;background:rgba(11,11,14,0.8);backdrop-filter:blur(8px);padding:2px 8px;border-radius:9999px;font-size:7px;line-height:1;font-weight:500;color:#e4e4e7;border:1px solid #27272a;cursor:default;box-shadow:0 1px 3px rgba(0,0,0,0.2);">
+                            <div style="position:absolute;bottom:8px;right:8px;background:rgba(11,11,14,0.8);backdrop-filter:blur(8px);padding:2px 8px;border-radius:9999px;font-size:7px;line-height:1;font-weight:500;color:#e4e4e7;border:1px solid #27272a;cursor:default;box-shadow:0 1px 3px rgba(0,0,0,0.2);">
                                 ${movie.year}
                             </div>
-                                                        
                             <div style="position:absolute;top:8px;right:8px;background:rgba(9,9,11,0.85);backdrop-filter:blur(4px);color:#f4f4f5;border:1px solid #27272a;border-radius:999px;padding:3px 8px;font-size:7px;line-height:1;font-weight:500;">⭐ <strong style="color:#fff;">${movie.personalRating}</strong><span style="color:#a1a1aa;">/10</span></div>
                         </div>
                         <div style="padding:8px 10px;box-sizing:border-box;flex:1;display:flex;flex-direction:column;justify-content:space-between;">
@@ -2133,7 +2255,7 @@ function filterAndSortMovies() {
             try {
                 const pdfObject = await html2pdf().from(element).set(opt).toPdf().get('pdf');
                 const totalPagesInPdf = pdfObject.internal.getNumberOfPages();
-                if (totalPagesInPdf > totalBatchPages) pdfObject.deletePage(totalPagesInPdf);
+                if (totalPagesInPdf > totalBatchPages) pdfObject.deletePage(totalBatchPages);
                 const blob = pdfObject.output('blob');
                 pdfBlobs.push(blob);
                 const progress = Math.round(((batchIdx + 1) / totalBatches) * 100);
@@ -2202,10 +2324,20 @@ function filterAndSortMovies() {
                 if (j>=pageChunk.length) { pageHtml += '<div></div>'; continue; }
                 const movie = pageChunk[j];
                 const isWatched = movie.watchStatus === 'Watched';
+                const isNotFinished = movie.watchStatus === 'Not Finished';
+                let statusBg = '#18181c';
+                let statusText = '#a1a1aa';
+                let statusBorder = '#27272a';
+                if (isWatched) {
+                    statusBg = '#06231c';
+                    statusText = '#5eead4';
+                    statusBorder = '#115e59';
+                } else if (isNotFinished) {
+                    statusBg = '#2a0a0a';
+                    statusText = '#ef4444';
+                    statusBorder = '#7f1d1d';
+                }
                 const isSeries = (movie.mediaType || 'movie') === 'series';
-                const statusBg = isWatched ? '#06231c' : '#18181c';
-                const statusText = isWatched ? '#5eead4' : '#a1a1aa';
-                const statusBorder = isWatched ? '#115e59' : '#27272a';
                 const typeBg = isSeries ? '#3b2207' : '#18181c';
                 const typeText = isSeries ? '#fcd34d' : '#d4d4d8';
                 const typeBorder = isSeries ? '#78350f' : '#27272a';
@@ -2216,11 +2348,9 @@ function filterAndSortMovies() {
                 pageHtml += `<div style="width:100%;height:312px;background:#111115;border:1px solid #232328;border-radius:10px;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;box-shadow:0 4px 6px -1px rgba(0,0,0,0.2);">
                     <div style="position:relative;width:100%;height:240px;background:#09090b;overflow:hidden;flex-shrink:0;">
                         <img src="${movie.poster}" crossorigin="anonymous" alt="" style="width:100%;height:100%;object-fit:cover;display:block;">
-
-                    
-<div style="position:absolute;bottom:8px;right:8px;background:rgba(11,11,14,0.8);backdrop-filter:blur(8px);padding:2px 8px;border-radius:9999px;font-size:7px;line-height:1;font-weight:500;color:#e4e4e7;border:1px solid #27272a;cursor:default;box-shadow:0 1px 3px rgba(0,0,0,0.2);">
-    ${movie.year}
-</div>
+                        <div style="position:absolute;bottom:8px;right:8px;background:rgba(11,11,14,0.8);backdrop-filter:blur(8px);padding:2px 8px;border-radius:9999px;font-size:7px;line-height:1;font-weight:500;color:#e4e4e7;border:1px solid #27272a;cursor:default;box-shadow:0 1px 3px rgba(0,0,0,0.2);">
+                            ${movie.year}
+                        </div>
                         <div style="position:absolute;top:8px;right:8px;background:rgba(9,9,11,0.85);backdrop-filter:blur(4px);color:#f4f4f5;border:1px solid #27272a;border-radius:999px;padding:3px 8px;font-size:7px;line-height:1;font-weight:500;">⭐ <strong style="color:#fff;">${movie.personalRating}</strong><span style="color:#a1a1aa;">/10</span></div>
                     </div>
                     <div style="padding:8px 10px;box-sizing:border-box;flex:1;display:flex;flex-direction:column;justify-content:space-between;">
@@ -2228,8 +2358,6 @@ function filterAndSortMovies() {
                             <div style="font-size:10.5px;line-height:1.2;color:#e4e4e7;font-weight:500;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px;">${movie.title}</div>
                             <div style="display:flex;align-items:center;justify-content:space-between;gap:4px;margin-bottom:4px;">
                                 <span style="font-size:7.5px;color:#71717a;font-weight:300;">IMDb: ${movie.imdbRating}/10</span>
-
-                              
                             </div>
                         </div>
                         <div style="line-height:1;max-height:18px;overflow:hidden;">${genresHtml} ${tagsHtml}</div>
